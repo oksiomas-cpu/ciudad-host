@@ -310,6 +310,8 @@ export default function HostConsole() {
         roles: {
           canon: roomPid(players[rr.canon]),
           fantasy: roomPid(players[rr.fantasy]),
+          canonName: players[rr.canon],
+          fantasyName: players[rr.fantasy],
           detectives: rr.detectives.map((i) => roomPid(players[i])).filter(Boolean),
         },
       });
@@ -687,22 +689,21 @@ export default function HostConsole() {
           ))}
         </div>
 
-        {roundConnected && (() => {
+        {roundConnected && room.round.witAName && (() => {
           const rd = room.round;
-          const wn = (pid) => { const p = (room.players || []).find((x) => x.id === pid); return p ? p.name : "—"; };
-          const canonPid = roomPid(players[canon]);
+          const canonName = players[canon];
           const asked = rd.asked || [];
           return (
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, fontSize: 13.5 }}>
-                {[["A", rd.witA], ["B", rd.witB]].map(([L, pid]) => (
-                  <span key={L} style={{ background: C.cream, border: `1.5px solid ${pid === canonPid ? C.emerald : C.raspberry}`, borderRadius: 99, padding: "4px 12px", fontWeight: 700 }}>
-                    Свидетель {L} — {wn(pid)} <span style={{ color: pid === canonPid ? C.emeraldDeep : C.raspberryDeep, fontSize: 11.5 }}>({pid === canonPid ? "Канон" : "Фантазия"})</span>
+                {[["A", rd.witAName], ["B", rd.witBName]].map(([L, nm]) => (
+                  <span key={L} style={{ background: C.cream, border: `1.5px solid ${nm === canonName ? C.emerald : C.raspberry}`, borderRadius: 99, padding: "4px 12px", fontWeight: 700 }}>
+                    Свидетель {L} — {nm} <span style={{ color: nm === canonName ? C.emeraldDeep : C.raspberryDeep, fontSize: 11.5 }}>({nm === canonName ? "Канон" : "Фантазия"})</span>
                   </span>
                 ))}
               </div>
-              <QuestionFeed asked={asked} witA={wn(rd.witA)} witB={wn(rd.witB)} />
-              <QuestionGrid asked={asked} witA={wn(rd.witA)} witB={wn(rd.witB)} />
+              <QuestionFeed asked={asked} witA={rd.witAName} witB={rd.witBName} />
+              <QuestionGrid asked={asked} witA={rd.witAName} witB={rd.witBName} />
             </div>
           );
         })()}
@@ -804,7 +805,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.3</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.4</div>
     </div>
   );
 }
