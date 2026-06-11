@@ -32,51 +32,61 @@ const VERBS = [
     key: "desayunar", emoji: "☕", inf: "desayunar", ru: "завтракать", scene: "Escena 1",
     storyEs: "Cada mañana, antes de que el Palacio de Caramelo despierte, el Gran Jefe Alcalde **desayuna** solo en su terraza favorita. Hoy **desayuna** con una taza de café negro y una torre de tostadas con caramelo dorado. Mientras **desayuna**, mira la ciudad que lentamente abre los ojos.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Desayuna"], ["¿Dónde?", "En su terraza favorita"], ["¿Cuándo?", "Cada mañana, a las seis y media"], ["¿Con quién?", "Solo"], ["¿Qué come/bebe?", "Café negro y tostadas con caramelo dorado"], ["¿Qué hace a la vez?", "Mira la ciudad que despierta"], ["¿Y después?", "Llegan las mejores ideas"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"no", n14:"sí", n15:"sí", n16:"sí", n21:"sí", n22:"no", n23:"no", n24:"no", n25:"no", n26:"no", n27:"no", n28:"no", n29:"sí", n31:"sí", n32:"no", n33:"sí", n34:"sí", n35:"sí" },
   },
   {
     key: "caminar", emoji: "🚶", inf: "caminar", ru: "идти / гулять", scene: "Escena 2",
     storyEs: "Después del desayuno, el Gran Jefe Alcalde **camina** por los pasillos del Palacio de Caramelo. Él **camina** despacio, con las manos detrás de la espalda. El Jefe **camina** cada mañana exactamente veinte minutos. Mientras **camina**, encuentra una idea nueva.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Camina"], ["¿Dónde?", "Por los pasillos del palacio"], ["¿Cuándo?", "Cada mañana, después del desayuno"], ["¿Con quién?", "Solo"], ["¿Cómo camina?", "Despacio, con las manos detrás de la espalda"], ["¿Cuánto dura?", "Exactamente veinte minutos"], ["¿Y después?", "Llega una idea nueva"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"no", n22:"no", n23:"no", n24:"no", n25:"sí", n26:"no", n27:"no", n28:"no", n29:"sí", n31:"no", n32:"no", n33:"no", n34:"no", n35:"sí" },
   },
   {
     key: "cantar", emoji: "🎵", inf: "cantar", ru: "петь", scene: "Escena 3",
     storyEs: "Cada mañana, a las siete en punto, los tres ayudantes del Jefe se reúnen en la Cocina Mágica. Ellos siempre **cantan** juntos una canción de trabajo. Mientras **cantan**, el caramelo en las ollas comienza a brillar más fuerte. El Jefe escucha desde su despacho y sonríe.",
     dossier: [["¿Quién?", "Los tres ayudantes del Jefe"], ["¿Qué hacen?", "Cantan"], ["¿Dónde?", "En la Cocina Mágica"], ["¿Cuándo?", "Cada mañana, a las siete en punto"], ["¿Con quién?", "Los tres juntos"], ["¿Qué cantan?", "«La melodía del caramelo dorado»"], ["¿Cuánto dura?", "Exactamente 5 minutos"], ["¿Qué pasa a la vez?", "El caramelo en las ollas brilla más fuerte"], ["¿Quién escucha?", "El Jefe, desde su despacho"]],
+    answers: { n11:"no", m1:"no", n12:"sí", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"no", n22:"no", n23:"no", n24:"sí", n25:"no", n26:"no", n27:"no", n28:"sí", n29:"no", n31:"sí", n32:"sí", n33:"no", n34:"no", n35:"no" },
   },
   {
     key: "mirar", emoji: "👁", inf: "mirar", ru: "смотреть", scene: "Escena 4",
     storyEs: "Desde la terraza del Palacio, el Gran Jefe Alcalde **mira** la ciudad cada mañana. Él **mira** con calma, sin prisa. Hoy **mira** las nubes, **mira** los ayudantes que caminan por el mercado, **mira** el río de caramelo. Cuando **mira** así, en silencio, entiende todo lo que necesita.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Mira"], ["¿Dónde?", "Desde la terraza del palacio"], ["¿Cuándo?", "Cada mañana"], ["¿Con quién?", "Solo, en silencio"], ["¿Qué mira?", "Las nubes, los ayudantes, el río de caramelo"], ["¿Cómo mira?", "Con calma, sin prisa"], ["¿Y después?", "Entiende todo lo que necesita para el día"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"no", n14:"sí", n15:"sí", n16:"sí", n21:"no", n22:"sí", n23:"no", n24:"no", n25:"no", n26:"no", n27:"no", n28:"no", n29:"no", n31:"sí", n32:"no", n33:"sí", n34:"no", n35:"sí" },
   },
   {
     key: "buscar", emoji: "🔍", inf: "buscar", ru: "искать", scene: "Escena 5",
     storyEs: "Cada mañana, después de mirar la ciudad, el Jefe **busca** ideas nuevas para el menú. Él **busca** en su libro de recetas. Hoy **busca** un ingrediente especial — algo que nunca ha usado. **Busca** en los armarios dorados, **busca** en las cajas secretas del sótano. Al final lo encuentra.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Busca"], ["¿Qué busca?", "Un ingrediente especial, nuevo"], ["¿Dónde busca?", "El libro de recetas, los armarios, las cajas del sótano"], ["¿Cuándo?", "Cada mañana, después de mirar la ciudad"], ["¿Con quién?", "Solo"], ["¿Cómo termina?", "Siempre encuentra — sabe dónde mirar"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"sí", n22:"sí", n23:"no", n24:"no", n25:"no", n26:"no", n27:"no", n28:"no", n29:"sí", n31:"sí", n32:"no", n33:"no", n34:"no", n35:"sí" },
   },
   {
     key: "escuchar", emoji: "🎧", inf: "escuchar", ru: "слушать", scene: "Escena 6",
     storyEs: "Cada mañana, después de buscar ideas, el Jefe **escucha** los sonidos del Palacio. Se sienta en su sillón, cierra los ojos y **escucha** en silencio absoluto. Hoy **escucha** el caramelo que burbujea, el viento, los pasos de los ayudantes. **Escucha** durante diez minutos exactos.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Escucha"], ["¿Dónde?", "En su sillón favorito"], ["¿Cuándo?", "Cada mañana, después de buscar ideas"], ["¿Con quién?", "Solo, en silencio absoluto"], ["¿Qué escucha?", "El caramelo que burbujea, el viento, los pasos"], ["¿Cuánto dura?", "Exactamente diez minutos"], ["¿Y después?", "Sabe qué falta en el palacio hoy"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"no", n22:"no", n23:"sí", n24:"no", n25:"no", n26:"no", n27:"no", n28:"no", n29:"no", n31:"sí", n32:"no", n33:"no", n34:"no", n35:"sí" },
   },
   {
     key: "hablar", emoji: "🗣", inf: "hablar", ru: "говорить", scene: "Escena 7",
     storyEs: "El Gran Jefe Alcalde **habla** mucho. **Habla** con sus ayudantes cada mañana en la gran sala. **Habla** claro y despacio. Hoy **habla** sobre el menú especial del día. **Habla** durante quince minutos sin parar. Sus ayudantes escuchan y toman notas.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Habla"], ["¿Dónde?", "En la gran sala del palacio"], ["¿Cuándo?", "Cada mañana"], ["¿Con quién?", "Con sus ayudantes"], ["¿De qué habla?", "Del menú especial del día"], ["¿Cuánto dura?", "Quince minutos sin parar"], ["¿Y los ayudantes?", "Escuchan y toman notas en cuadernos dorados"]],
+    answers: { n11:"sí", m1:"no", n12:"no", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"no", n22:"no", n23:"no", n24:"sí", n25:"no", n26:"no", n27:"no", n28:"sí", n29:"no", n31:"no", n32:"no", n33:"no", n34:"no", n35:"no" },
   },
   {
     key: "preparar", emoji: "👨‍🍳", inf: "preparar", ru: "готовить", scene: "Escena 8",
     storyEs: "Después de hablar con sus ayudantes, el Jefe **prepara** el plato especial del día. Hoy **prepara** una tarta de caramelo con pétalos de azúcar dorado. **Prepara** todo con cuidado, con su cucharón de oro y su varilla de cristal. **Prepara** este plato durante una hora exacta.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Prepara"], ["¿Qué prepara?", "Una tarta de caramelo con pétalos de azúcar dorado"], ["¿Dónde?", "Sobre la mesa de mármol blanco"], ["¿Cuándo?", "Después de hablar con los ayudantes"], ["¿Con quién?", "Solo (los ayudantes observan en silencio)"], ["¿Con qué?", "Cucharón de oro y varilla de cristal"], ["¿Cuánto dura?", "Exactamente una hora"], ["¿Qué hace a la vez?", "Canta en voz baja"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"sí", n22:"sí", n23:"no", n24:"no", n25:"no", n26:"sí", n27:"no", n28:"no", n29:"no", n31:"no", n32:"sí", n33:"no", n34:"no", n35:"sí" },
   },
   {
     key: "comprar", emoji: "🛒", inf: "comprar", ru: "покупать", scene: "Escena 9",
     storyEs: "Una vez a la semana, el Jefe va al mercado de caramelo a **comprar** ingredientes frescos. **Compra** siempre lo mismo: caramelo líquido, azúcar dorado y especias mágicas. Hoy **compra** algo nuevo — polvo de caramelo plateado. **Compra** con una lista en la mano, rápido y sin dudar.",
     dossier: [["¿Quién?", "El Gran Jefe Alcalde"], ["¿Qué hace?", "Compra"], ["¿Dónde?", "En el mercado de caramelo"], ["¿Cuándo?", "Una vez a la semana"], ["¿Con quién?", "Solo"], ["¿Qué compra normalmente?", "Caramelo líquido, azúcar dorado, especias mágicas"], ["¿Qué compra hoy de nuevo?", "Una bolsa de polvo de caramelo plateado"], ["¿A quién compra?", "Al señor Dulce, en el rincón secreto del mercado"], ["¿Cómo compra?", "Rápido, con una lista en la mano"]],
+    answers: { n11:"sí", m1:"sí", n12:"no", n13:"no", n14:"sí", n15:"sí", n16:"no", n21:"sí", n22:"sí", n23:"no", n24:"no", n25:"no", n26:"sí", n27:"sí", n28:"no", n29:"no", n31:"sí", n32:"no", n33:"no", n34:"no", n35:"no" },
   },
   {
     key: "trabajar", emoji: "⚙️", inf: "trabajar", ru: "работать", scene: "Escena 10",
     storyEs: "En el Palacio de Caramelo, todos **trabajan** juntos. El Jefe **trabaja** desde las siete de la mañana hasta las tres de la tarde. Hoy todos **trabajan** en el gran banquete del viernes. El Jefe **trabaja** en la cocina; los ayudantes **trabajan** en la sala de decoración.",
     dossier: [["¿Quién?", "El Jefe y todos los ayudantes"], ["¿Qué hacen?", "Trabajan"], ["¿Dónde trabaja el Jefe?", "En la cocina principal"], ["¿Dónde los ayudantes?", "En la sala de decoración"], ["¿Cuándo?", "Hoy — en el banquete del viernes"], ["¿Con quién?", "Todos juntos"], ["¿En qué trabajan?", "Flores de azúcar y velas de caramelo"], ["¿Cuánto dura?", "De las siete a las tres de la tarde"], ["¿Y después?", "El resultado siempre es perfecto"]],
+    answers: { n11:"sí", m1:"no", n12:"sí", n13:"sí", n14:"no", n15:"sí", n16:"sí", n21:"sí", n22:"no", n23:"no", n24:"no", n25:"no", n26:"sí", n27:"no", n28:"sí", n29:"no", n31:"no", n32:"sí", n33:"no", n34:"no", n35:"no" },
   },
 ];
 
@@ -838,7 +848,7 @@ export default function HostConsole() {
 
   const questionListCard = rd0 && rd0.witAName ? (
     <Block stripe={C.goldDeep}>
-      <QuestionGrid asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} />
+      <QuestionGrid asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} ans={v.answers} />
     </Block>
   ) : null;
 
@@ -864,7 +874,7 @@ export default function HostConsole() {
 
       {rd0 && rd0.witAName && (
         <div style={{ marginBottom: 14 }}>
-          <QuestionFeed asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} wide={wide} />
+          <QuestionFeed asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} wide={wide} ans={v.answers} />
         </div>
       )}
 
@@ -1015,7 +1025,7 @@ export default function HostConsole() {
         </div>
         {rd0 && rd0.witAName && (
           <Block stripe={C.goldDeep} style={{ marginTop: 4 }}>
-            <QuestionBoard asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} />
+            <QuestionBoard asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} ans={v.answers} />
           </Block>
         )}
         <Footer onReset={resetAll} />
@@ -1055,7 +1065,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.9</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.10</div>
     </div>
   );
 }
@@ -1127,7 +1137,7 @@ function MsgBox({ title, text, onCopy, copied }) {
   );
 }
 
-function QuestionFeed({ asked, witA, witB, wide }) {
+function QuestionFeed({ asked, witA, witB, wide, ans }) {
   const fs = wide ? 15 : 13;
   if (!asked.length) return (
     <div style={{ background: C.cream, border: `1px dashed ${C.line}`, borderRadius: 10, padding: "9px 12px", fontSize: fs, color: C.inkSoft, marginBottom: 10 }}>
@@ -1142,20 +1152,33 @@ function QuestionFeed({ asked, witA, witB, wide }) {
           <span style={{ flexShrink: 0, fontWeight: 700 }}>🕵️ {a.byName}</span>
           {a.to && <span style={{ flexShrink: 0, background: C.goldSoft, borderRadius: 6, padding: "0 7px", fontWeight: 700 }}>→ {a.to} · {a.to === "A" ? witA : witB}</span>}
           <span style={{ color: C.inkSoft, minWidth: 0 }}>{a.text}</span>
+          <CanonAns ans={ans} qid={a.qid} />
         </div>
       ))}
     </div>
   );
 }
+// Ответ Канона (правда) для вопроса из списка — подсказка только для ведущей
+function CanonAns({ ans, qid, compact }) {
+  const a = ans && qid ? ans[qid] : null;
+  if (!a) return null;
+  const si = a === "sí";
+  return (
+    <span style={{ flexShrink: 0, border: `1.5px solid ${C.emerald}`, color: si ? "#fff" : C.emeraldDeep, background: si ? C.emerald : C.card, borderRadius: 6, padding: compact ? "0 6px" : "1px 8px", fontWeight: 800, fontSize: compact ? 11 : 12 }}>
+      {compact ? (si ? "SÍ" : "NO") : (si ? "Канон: SÍ" : "Канон: NO")}
+    </span>
+  );
+}
+
 // Полноэкранная доска вопросов (wide-режим): всегда раскрыта, категории в 3 колонки
-function QuestionBoard({ asked, witA, witB }) {
+function QuestionBoard({ asked, witA, witB, ans }) {
   const mark = (qid, w) => asked.some((a) => a.qid === qid && a.to === w);
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
         <h2 style={{ ...h2, margin: 0 }}>📋 Список вопросов · гашение по A и B</h2>
         <span style={{ fontSize: 13, color: C.inkSoft }}>
-          <b style={{ color: C.goldDeep }}>A</b> — {witA} · <b style={{ color: C.goldDeep }}>B</b> — {witB} · золотая метка = вопрос уже задан этому свидетелю
+          <b style={{ color: C.goldDeep }}>A</b> — {witA} · <b style={{ color: C.goldDeep }}>B</b> — {witB} · золотая метка = вопрос задан · зелёный SÍ/NO = правильный ответ Канона
         </span>
       </div>
       <div style={{ columnCount: 3, columnGap: 22 }}>
@@ -1167,6 +1190,7 @@ function QuestionBoard({ asked, witA, witB }) {
               return (
                 <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 14.5, borderBottom: `1px dashed ${C.line}` }}>
                   <span style={{ flex: 1, color: a && b ? C.inkSoft : C.ink, textDecoration: a && b ? "line-through" : "none" }}>{q.q}</span>
+                  <CanonAns ans={ans} qid={q.id} compact />
                   {[["A", a], ["B", b]].map(([L, on]) => (
                     <span key={L} style={{ width: 28, textAlign: "center", borderRadius: 6, fontWeight: 800, fontSize: 12.5, padding: "3px 0", background: on ? C.goldDeep : C.card, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.goldDeep : C.line}` }}>{L}</span>
                   ))}
@@ -1180,7 +1204,7 @@ function QuestionBoard({ asked, witA, witB }) {
   );
 }
 
-function QuestionGrid({ asked, witA, witB }) {
+function QuestionGrid({ asked, witA, witB, ans }) {
   const [open, setOpen] = useState(false);
   const mark = (qid, w) => asked.some((a) => a.qid === qid && a.to === w);
   return (
@@ -1197,6 +1221,7 @@ function QuestionGrid({ asked, witA, witB }) {
             return (
               <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", fontSize: 12.5 }}>
                 <span style={{ flex: 1, color: a && b ? C.inkSoft : C.ink, textDecoration: a && b ? "line-through" : "none" }}>{q.q}</span>
+                <CanonAns ans={ans} qid={q.id} compact />
                 {[["A", a, witA], ["B", b, witB]].map(([L, on, name]) => (
                   <span key={L} title={`Свидетель ${L} · ${name}`} style={{ width: 26, textAlign: "center", borderRadius: 6, fontWeight: 800, fontSize: 11.5, padding: "2px 0", background: on ? C.goldDeep : C.cream, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.goldDeep : C.line}` }}>{L}</span>
                 ))}
