@@ -171,6 +171,10 @@ export default function HostConsole() {
   const [copied, setCopied] = useState("");
   const [prepActive, setPrepActive] = useState(false);
   const [prepLeft, setPrepLeft] = useState(PREP_DEFAULT);
+  // --- Комната живой игры (Zoom) ---
+  const [room, setRoom] = useState(() => { try { return JSON.parse(localStorage.getItem("host_room_v1")) || null; } catch (e) { return null; } });
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [roomErr, setRoomErr] = useState("");
   const loaded = useRef(false);
 
   // загрузка состояния
@@ -200,6 +204,44 @@ export default function HostConsole() {
     const t = setTimeout(() => setPrepLeft((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [prepActive, prepLeft]);
+
+  // --- Комната: создание, опрос, действия ---
+  async function api(payload) {
+    const r = await fetch("/api/game", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    return r.json();
+  }
+  async function createRoom() {
+    setRoomBusy(true); setRoomErr("");
+    try {
+      const d = await api({ action: "create" });
+      if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
+      else setRoomErr(d.error || "Не получилось создать комнату");
+    } catch (e) { setRoomErr("Сеть недоступна: " + e); }
+    setRoomBusy(false);
+  }
+  function closeRoom() { setRoom(null); setRoomErr(""); try { localStorage.removeItem("host_room_v1"); } catch (e) {} }
+  async function kickPlayer(pid) {
+    if (!room) return;
+    const d = await api({ action: "kick", code: room.code, playerId: pid });
+    if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
+  }
+  function fillFromRoom() {
+    if (!room) return;
+    const names = room.players.map((p) => p.name);
+    setPlayers([0, 1, 2, 3, 4].map((i) => names[i] || ""));
+  }
+  // опрос комнаты раз в 2 сек, пока мы в настройке
+  useEffect(() => {
+    if (!room || phase !== "setup") return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/game?code=${room.code}`);
+        const d = await r.json();
+        if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
+      } catch (e) { /* временный сбой сети — не страшно */ }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [room && room.code, phase]);
 
   function startPrep() { setPrepLeft(PREP_DEFAULT); setPrepActive(true); }
 
@@ -290,6 +332,39 @@ export default function HostConsole() {
     return (
       <div style={wrap}><div style={maxw}>
         <Header />
+        <Block stripe={C.raspberry}>
+          <h2 style={h2}>🎮 Комната Zoom-игры</h2>
+          {!room ? (
+            <>
+              <p style={pHint}>Создай комнату — получишь код для игроков. Они введут его в своих пультах, и ты увидишь, кто вошёл.</p>
+              <Btn bg={C.raspberry} disabled={roomBusy} onClick={createRoom} style={{ width: "100%", marginTop: 10, padding: 13 }}>
+                {roomBusy ? "Создаю..." : "✦ Создать комнату"}
+              </Btn>
+              {roomErr && <p style={{ ...pHint, color: C.raspberry, marginTop: 8 }}>{roomErr}</p>}
+            </>
+          ) : (
+            <>
+              <div style={{ textAlign: "center", margin: "10px 0 4px" }}>
+                <div style={{ fontSize: 13, color: C.inkSoft }}>Код игры — продиктуй или кинь в чат Zoom:</div>
+                <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: 8, color: C.raspberry, margin: "4px 0" }}>{room.code}</div>
+              </div>
+              <Label>Вошли ({(room.players || []).length}/5)</Label>
+              {(room.players || []).length === 0 && (
+                <p style={{ ...pHint, marginTop: 6 }}>Пока никого — жду игроков...</p>
+              )}
+              {(room.players || []).map((p) => (
+                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", marginTop: 6 }}>
+                  <span style={{ fontWeight: 700 }}>✅ {p.name}</span>
+                  <button onClick={() => kickPlayer(p.id)} title="Убрать из комнаты" style={{ background: "none", border: "none", color: C.inkSoft, cursor: "pointer", fontSize: 15 }}>✕</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                <Btn bg={C.emerald} disabled={(room.players || []).length === 0} onClick={fillFromRoom}>↓ Подставить имена в игру</Btn>
+                <Btn bg={C.goldDeep} onClick={closeRoom}>Закрыть комнату</Btn>
+              </div>
+            </>
+          )}
+        </Block>
         <Block stripe={C.gold}>
           <h2 style={h2}>Настройка игры</h2>
           <p style={pHint}>5 участников и 5 глаголов из пула. Роли распределит система.</p>
