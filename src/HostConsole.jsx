@@ -376,6 +376,77 @@ export default function HostConsole() {
       setBanner(`❌ Свой вопрос (${byName}): не засчитан, без штрафа`);
     }
   }
+  // --- Шаг 5: угадывание глагола (руки, слово, голосование, вердикт) ---
+  const rdSrv = roundConnected ? room.round : null;
+  const handsSrv = rdSrv ? rdSrv.hands || [] : [];
+  const guessSrv = rdSrv ? rdSrv.guess || null : null;
+  const votedCount = rdSrv ? (rdSrv.votedIds || []).length : 0;
+  const votersNeed = rdSrv ? ((rdSrv.roles && rdSrv.roles.detectives) || []).length : 0;
+  const elimSrv = rdSrv ? rdSrv.eliminated || [] : [];
+  const revealedSrv = rdSrv ? rdSrv.revealed || null : null;
+  async function giveFloor(pid) {
+    const d = await api({ action: "give_floor", code: room.code, playerId: pid });
+    if (!d.ok) { setBanner("⚠️ " + (d.error || "Не получилось дать слово")); return; }
+    setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game));
+  }
+  async function sendVerdict(correct) {
+    const d = await api({ action: "verdict", code: room.code, correct });
+    if (!d.ok) { setBanner("⚠️ " + (d.error || "Не получилось")); return; }
+    setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game));
+  }
+  async function endRoundSrv() {
+    const d = await api({ action: "end_round", code: room.code });
+    if (!d.ok) { setBanner("⚠️ " + (d.error || "Не получилось завершить раунд")); return; }
+    setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game));
+  }
+  async function forceVotes() {
+    const d = await api({ action: "force_votes", code: room.code });
+    if (!d.ok) { setBanner("⚠️ " + (d.error || "Не получилось")); return; }
+    setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game));
+  }
+  // вскрытие пришло из комнаты → очки в таблицу /host один раз (защита от перезагрузки страницы)
+  const revealApplied = useRef(Number(localStorage.getItem("host_reveal_v1") || 0));
+  useEffect(() => {
+    if (!revealedSrv || revealedSrv.ts === revealApplied.current) return;
+    revealApplied.current = revealedSrv.ts;
+    try { localStorage.setItem("host_reveal_v1", String(revealedSrv.ts)); } catch (e) {}
+    setScores((prev) => {
+      const sc = { ...prev };
+      (revealedSrv.breakdown || []).forEach((b) => {
+        const idx = players.findIndex((p) => p.trim().toLowerCase() === String(b.name).trim().toLowerCase());
+        if (idx >= 0) sc[idx] = (sc[idx] || 0) + b.pts;
+      });
+      return sc;
+    });
+    setSolved(true); setAskWho(false);
+    const rvb = verbByKey(revealedSrv.verbKey);
+    setBanner(revealedSrv.ok
+      ? `✔ ${revealedSrv.byName} угадал: ${rvb ? rvb.inf : revealedSrv.verbKey} (+${revealedSrv.detPts}, круг ${revealedSrv.circle}). Очки начислены автоматически.`
+      : `Никто не угадал. Глагол: ${rvb ? rvb.inf : revealedSrv.verbKey}. Очки свидетелям начислены.`);
+    chime();
+  }, [revealedSrv && revealedSrv.ts]);
+  // выбывание детектива → плашка
+  const elimSeen = useRef(0);
+  useEffect(() => {
+    const le = rdSrv ? rdSrv.lastElim : null;
+    if (le && le.ts !== elimSeen.current) {
+      elimSeen.current = le.ts;
+      setBanner(`❌ ${le.byName} назвал(а) неверный глагол — выбывает до конца раунда`);
+    }
+  }, [rdSrv && rdSrv.lastElim && rdSrv.lastElim.ts]);
+  // звуковой сигнал: называние глагола / новая рука
+  const guessChimed = useRef(0);
+  useEffect(() => {
+    if (guessSrv && guessSrv.stage === "naming" && guessSrv.ts !== guessChimed.current) {
+      guessChimed.current = guessSrv.ts; chime();
+    }
+  }, [guessSrv && guessSrv.stage, guessSrv && guessSrv.ts]);
+  const handsChimed = useRef(0);
+  useEffect(() => {
+    const last = handsSrv.length ? handsSrv[handsSrv.length - 1].ts : 0;
+    if (last && last !== handsChimed.current) { handsChimed.current = last; chime(); }
+  }, [handsSrv.length]);
+
   async function addQuestion() {
     if (solved || qCount >= 27) return;
     if (roundConnected) {
@@ -746,27 +817,89 @@ export default function HostConsole() {
           </div>
         )}
 
+        {/* --- Шаг 5: называние глагола --- */}
+        {roundConnected && !solved && guessSrv && guessSrv.stage === "voting" && (
+          <div style={{ background: C.cream, border: `2px solid ${C.raspberry}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 15.5, color: C.raspberry, marginBottom: 4 }}>
+              🗳 Тайное голосование «Верю A / B» — {votedCount}/{votersNeed}
+            </div>
+            <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>
+              {guessSrv.byName ? `Слово у ${guessSrv.byName} — назовёт глагол после голосования.` : "Финал раунда: после голосования — вскрытие."} Детективы голосуют на своих пультах.
+            </div>
+            <button onClick={forceVotes} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "4px 12px", color: C.inkSoft, fontSize: 12, cursor: "pointer", fontFamily: SERIF }}>
+              ⏭ Закрыть голосование без отстающих (чей-то пульт завис)
+            </button>
+          </div>
+        )}
+        {roundConnected && !solved && guessSrv && guessSrv.stage === "naming" && (
+          <div style={{ background: C.goldSoft, border: `2px solid ${C.goldDeep}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: C.ink, marginBottom: 6 }}>
+              🎤 <span style={{ color: C.raspberry }}>{guessSrv.byName}</span> называет глагол голосом. Верный — <b>{v.inf}</b>?
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Btn bg={C.emerald} onClick={() => sendVerdict(true)}>✅ Верный — вскрытие и очки</Btn>
+              <Btn bg={C.raspberry} onClick={() => sendVerdict(false)}>❌ Неверный — выбывает</Btn>
+            </div>
+          </div>
+        )}
+        {roundConnected && !solved && !guessSrv && (
+          <div style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 13px", marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, color: C.goldDeep, marginBottom: 6 }}>
+              🖐 Готовы назвать глагол {handsSrv.length ? `(${handsSrv.length})` : "— рук пока нет"}
+            </div>
+            {handsSrv.map((h, i) => (
+              <div key={h.by} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 0", borderBottom: `1px dashed ${C.line}` }}>
+                <span style={{ fontWeight: 700, fontSize: 14.5 }}>{i + 1}. {h.byName}</span>
+                <Btn bg={C.raspberry} style={{ padding: "6px 12px", fontSize: 13.5 }} onClick={() => giveFloor(h.by)}>🎤 Дать слово</Btn>
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 7, lineHeight: 1.45 }}>
+              Право первой попытки — у задавшего вопрос: он называет глагол голосом, ты жмёшь «Дать слово» на его имени ниже и потом ✅/❌. Молчит — слово первой руке.
+            </div>
+            {(() => {
+              const dets = (rdSrv.roles && rdSrv.roles.detectives) || [];
+              const others = dets.filter((pid) => !elimSrv.includes(pid) && !handsSrv.some((h) => h.by === pid));
+              if (!others.length) return null;
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: C.inkSoft }}>Дать слово без руки:</span>
+                  {others.map((pid) => {
+                    const p = (room.players || []).find((x) => x.id === pid);
+                    return (
+                      <button key={pid} onClick={() => giveFloor(pid)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 99, padding: "4px 12px", color: C.ink, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: SERIF }}>
+                        🎤 {p ? p.name : "?"}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
         {!solved && (
           <>
             <div style={{ fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Сейчас спрашивает:</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {detectives.map((d) => {
-                const on = d === activeDetective;
+                const elim = roundConnected && elimSrv.includes(roomPid(players[d]));
+                const on = d === activeDetective && !elim;
                 return (
                   <div key={d} style={{
                     padding: "8px 14px", borderRadius: 999, fontWeight: on ? 700 : 500, fontSize: 14.5,
                     background: on ? C.gold : C.cream, color: on ? "#fff" : C.inkSoft,
                     border: `1.5px solid ${on ? C.goldDeep : C.line}`,
-                  }}>{on ? "▶ " : ""}{players[d]}</div>
+                    textDecoration: elim ? "line-through" : "none", opacity: elim ? 0.55 : 1,
+                  }}>{elim ? "❌ " : on ? "▶ " : ""}{players[d]}</div>
                 );
               })}
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Btn bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27}>{roundConnected ? "+ Вопрос голосом (без пульта)" : "+ Вопрос задан"}</Btn>
-              <Btn bg={C.gold} onClick={passTurn} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
-              <Btn bg={C.emerald} onClick={() => setAskWho(true)}>✔ Глагол угадан</Btn>
-              {qCount >= 27 && <Btn bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
+              <Btn bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27 || !!guessSrv}>{roundConnected ? "+ Вопрос голосом (без пульта)" : "+ Вопрос задан"}</Btn>
+              <Btn bg={C.gold} onClick={passTurn} disabled={!!guessSrv} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
+              {!roundConnected && <Btn bg={C.emerald} onClick={() => setAskWho(true)}>✔ Глагол угадан</Btn>}
+              {!roundConnected && qCount >= 27 && <Btn bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
+              {roundConnected && !guessSrv && <Btn bg={qCount >= 27 ? C.raspberry : "#B0A48C"} onClick={endRoundSrv} title="Голосование (если ещё не было) → вскрытие глагола → очки свидетелям">🏁 Завершить раунд</Btn>}
             </div>
 
             {askWho && (
@@ -843,7 +976,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.6</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.7</div>
     </div>
   );
 }
