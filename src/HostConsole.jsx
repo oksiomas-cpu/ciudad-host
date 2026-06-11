@@ -353,6 +353,29 @@ export default function HostConsole() {
     if (room) api({ action: "set_turn", code: room.code, turnIdx: t }).catch(() => {});
   }
   const roundConnected = !!(room && room.round && phase === "game" && room.round.n === round + 1);
+  // --- Свой вопрос детектива: ✅ = +2 автоматически, ❌ = 0 без штрафа; ход переходит сам ---
+  const pendingOwn = roundConnected ? room.round.pendingOwn || null : null;
+  const ownChimed = useRef(0);
+  useEffect(() => {
+    if (pendingOwn && pendingOwn.ts !== ownChimed.current) {
+      ownChimed.current = pendingOwn.ts;
+      chime();
+    }
+  }, [pendingOwn && pendingOwn.ts]);
+  async function approveOwn(approved) {
+    if (!pendingOwn) return;
+    const byName = pendingOwn.byName;
+    const d = await api({ action: "approve", code: room.code, approved });
+    if (!d.ok) { setBanner("⚠️ " + (d.error || "Не получилось оценить вопрос")); return; }
+    setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game));
+    if (approved) {
+      const idx = players.findIndex((p) => p.trim().toLowerCase() === String(byName).trim().toLowerCase());
+      if (idx >= 0) award(2, [idx]);
+      setBanner(`✅ Свой вопрос (${byName}): +2`);
+    } else {
+      setBanner(`❌ Свой вопрос (${byName}): не засчитан, без штрафа`);
+    }
+  }
   async function addQuestion() {
     if (solved || qCount >= 27) return;
     if (roundConnected) {
@@ -708,6 +731,21 @@ export default function HostConsole() {
           );
         })()}
 
+        {pendingOwn && !solved && (
+          <div style={{ background: C.goldSoft, border: `2px solid ${C.goldDeep}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 15.5, color: C.ink, marginBottom: 8 }}>
+              ✍️ Свой вопрос — <span style={{ color: C.raspberry }}>{pendingOwn.byName}</span> задаёт голосом
+            </div>
+            <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 10 }}>
+              ✅ если вопрос грамматически правильный, понятный и не повтор из списка.
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Btn bg={C.emerald} onClick={() => approveOwn(true)}>✅ Принять (+2)</Btn>
+              <Btn bg={C.raspberry} onClick={() => approveOwn(false)}>❌ Не засчитан (0)</Btn>
+            </div>
+          </div>
+        )}
+
         {!solved && (
           <>
             <div style={{ fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Сейчас спрашивает:</div>
@@ -805,7 +843,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.5</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.6</div>
     </div>
   );
 }
