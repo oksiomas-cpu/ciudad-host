@@ -80,6 +80,38 @@ const VERBS = [
   },
 ];
 
+// ---- Вопросы детективов (тот же список, что в симуляторе) ----
+const QUESTIONS = [
+  { id: "n11", cat: "quien", q: "¿El Jefe hace esto?" },
+  { id: "m1",  cat: "quien", q: "¿El Jefe hace esto solo?" },
+  { id: "n12", cat: "quien", q: "¿Los ayudantes también hacen esto?" },
+  { id: "n13", cat: "donde", q: "¿Esto pasa dentro del palacio?" },
+  { id: "n14", cat: "donde", q: "¿Esto pasa fuera del palacio?" },
+  { id: "n32", cat: "donde", q: "¿Esto ocurre en la cocina?" },
+  { id: "n33", cat: "donde", q: "¿Esto ocurre en la terraza?" },
+  { id: "n15", cat: "cuando", q: "¿Esto pasa por la mañana?" },
+  { id: "n16", cat: "cuando", q: "¿Esto ocurre todos los días?" },
+  { id: "n31", cat: "cuando", q: "¿Esto dura menos de quince minutos?" },
+  { id: "n21", cat: "como", q: "¿Se necesitan las manos para esto?" },
+  { id: "n22", cat: "como", q: "¿Se necesitan los ojos para esto?" },
+  { id: "n23", cat: "como", q: "¿Se necesitan los oídos para esto?" },
+  { id: "n24", cat: "como", q: "¿Se necesita la voz para esto?" },
+  { id: "n25", cat: "como", q: "¿Se necesitan las piernas para esto?" },
+  { id: "n26", cat: "como", q: "¿Se necesita un objeto o instrumento para esto?" },
+  { id: "n27", cat: "como", q: "¿Se necesita dinero para esto?" },
+  { id: "n28", cat: "detalles", q: "¿Esto produce un sonido?" },
+  { id: "n29", cat: "detalles", q: "¿Después de esto llega una idea nueva?" },
+  { id: "n34", cat: "detalles", q: "¿El Jefe come o bebe algo durante esto?" },
+  { id: "n35", cat: "detalles", q: "¿Hay silencio durante esto?" },
+];
+const CATS = [
+  { id: "quien",    icon: "👤", es: "¿QUIÉN?" },
+  { id: "donde",    icon: "📍", es: "¿DÓNDE?" },
+  { id: "cuando",   icon: "🕐", es: "¿CUÁNDO?" },
+  { id: "como",     icon: "✋", es: "¿CÓMO/CON QUÉ?" },
+  { id: "detalles", icon: "🔎", es: "DETALLES" },
+];
+
 // ---- Персистентность (localStorage) ----
 const STORE_KEY = "host_state_v1";
 function saveState(state) {
@@ -232,9 +264,9 @@ export default function HostConsole() {
     const names = room.players.map((p) => p.name);
     setPlayers([0, 1, 2, 3, 4].map((i) => names[i] || ""));
   }
-  // опрос комнаты раз в 2 сек, пока мы в настройке
+  // опрос комнаты раз в 2 сек: в настройке (вход игроков) и во время игры (лента вопросов)
   useEffect(() => {
-    if (!room || phase !== "setup") return;
+    if (!room) return;
     const t = setInterval(async () => {
       try {
         const r = await fetch(`/api/game?code=${room.code}`);
@@ -244,6 +276,21 @@ export default function HostConsole() {
     }, 2000);
     return () => clearInterval(t);
   }, [room && room.code, phase]);
+
+  // детективы спрашивают со своих пультов → счёт вопросов и очередь приходят из комнаты
+  useEffect(() => {
+    if (!room || phase !== "game" || !room.round) return;
+    if (room.round.n !== round + 1) return;
+    const sq = (room.round.asked || []).length;
+    const st = room.round.turnIdx || 0;
+    if (st !== turnIdx) setTurnIdx(st);
+    if (sq !== qCount) {
+      setQCount(sq);
+      if (sq === 9) setBanner("Круг 1 завершён — детективы не угадали. Переходим к Кругу 2.");
+      else if (sq === 18) setBanner("Круг 2 завершён. Финальный Круг 3.");
+      else if (sq === 27) setBanner("Вопросы закончились. Если глагол не угадан — свидетели получают потолок +6.");
+    }
+  }, [room, phase, round, qCount, turnIdx]);
 
   function startPrep() { setPrepLeft(PREP_DEFAULT); setPrepActive(true); }
 
@@ -303,8 +350,15 @@ export default function HostConsole() {
     setTurnIdx(t);
     if (room) api({ action: "set_turn", code: room.code, turnIdx: t }).catch(() => {});
   }
-  function addQuestion() {
+  const roundConnected = !!(room && room.round && phase === "game" && room.round.n === round + 1);
+  async function addQuestion() {
     if (solved || qCount >= 27) return;
+    if (roundConnected) {
+      // вопрос задан голосом без пульта: сервер сам двинет очередь, синк подтянет счёт
+      const d = await api({ action: "ask", code: room.code, manual: true, text: "🎙 вопрос задан голосом" });
+      if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
+      return;
+    }
     passTurn();
     const n = qCount + 1; setQCount(n);
     if (n === 9) setBanner("Круг 1 завершён — детективы не угадали. Переходим к Кругу 2.");
@@ -633,6 +687,26 @@ export default function HostConsole() {
           ))}
         </div>
 
+        {roundConnected && (() => {
+          const rd = room.round;
+          const wn = (pid) => { const p = (room.players || []).find((x) => x.id === pid); return p ? p.name : "—"; };
+          const canonPid = roomPid(players[canon]);
+          const asked = rd.asked || [];
+          return (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, fontSize: 13.5 }}>
+                {[["A", rd.witA], ["B", rd.witB]].map(([L, pid]) => (
+                  <span key={L} style={{ background: C.cream, border: `1.5px solid ${pid === canonPid ? C.emerald : C.raspberry}`, borderRadius: 99, padding: "4px 12px", fontWeight: 700 }}>
+                    Свидетель {L} — {wn(pid)} <span style={{ color: pid === canonPid ? C.emeraldDeep : C.raspberryDeep, fontSize: 11.5 }}>({pid === canonPid ? "Канон" : "Фантазия"})</span>
+                  </span>
+                ))}
+              </div>
+              <QuestionFeed asked={asked} witA={wn(rd.witA)} witB={wn(rd.witB)} />
+              <QuestionGrid asked={asked} witA={wn(rd.witA)} witB={wn(rd.witB)} />
+            </div>
+          );
+        })()}
+
         {!solved && (
           <>
             <div style={{ fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Сейчас спрашивает:</div>
@@ -650,7 +724,7 @@ export default function HostConsole() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Btn bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27}>+ Вопрос задан</Btn>
+              <Btn bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27}>{roundConnected ? "+ Вопрос голосом (без пульта)" : "+ Вопрос задан"}</Btn>
               <Btn bg={C.gold} onClick={passTurn} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
               <Btn bg={C.emerald} onClick={() => setAskWho(true)}>✔ Глагол угадан</Btn>
               {qCount >= 27 && <Btn bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
@@ -798,6 +872,54 @@ function MsgBox({ title, text, onCopy, copied }) {
         </button>
       </div>
       <pre style={{ whiteSpace: "pre-wrap", fontFamily: SERIF, fontSize: 13.5, margin: 0, color: C.inkSoft, lineHeight: 1.5 }}>{text}</pre>
+    </div>
+  );
+}
+
+function QuestionFeed({ asked, witA, witB }) {
+  if (!asked.length) return (
+    <div style={{ background: C.cream, border: `1px dashed ${C.line}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, color: C.inkSoft, marginBottom: 10 }}>
+      Лента вопросов пуста — детективы ещё не спрашивали со своих пультов.
+    </div>
+  );
+  return (
+    <div style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 10, maxHeight: 190, overflowY: "auto" }}>
+      {[...asked].map((a, i) => ({ ...a, n: i + 1 })).reverse().map((a) => (
+        <div key={a.n} style={{ display: "flex", gap: 8, padding: "5px 0", borderBottom: `1px dashed ${C.line}`, fontSize: 13, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span style={{ color: C.goldDeep, fontWeight: 700, flexShrink: 0 }}>#{a.n}</span>
+          <span style={{ flexShrink: 0, fontWeight: 700 }}>🕵️ {a.byName}</span>
+          {a.to && <span style={{ flexShrink: 0, background: C.goldSoft, borderRadius: 6, padding: "0 7px", fontWeight: 700 }}>→ {a.to} · {a.to === "A" ? witA : witB}</span>}
+          <span style={{ color: C.inkSoft, minWidth: 0 }}>{a.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function QuestionGrid({ asked, witA, witB }) {
+  const [open, setOpen] = useState(false);
+  const mark = (qid, w) => asked.some((a) => a.qid === qid && a.to === w);
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
+      <div onClick={() => setOpen(!open)} style={{ padding: "9px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between", background: C.goldSoft }}>
+        <span style={{ fontWeight: 700, fontSize: 13.5 }}>📋 Список вопросов · гашение по A и B</span>
+        <span style={{ color: C.goldDeep, fontWeight: 700 }}>{open ? "▲" : "▼"}</span>
+      </div>
+      {open && CATS.map((c) => (
+        <div key={c.id} style={{ padding: "6px 12px", borderTop: `1px solid ${C.line}` }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: C.goldDeep, margin: "4px 0" }}>{c.icon} {c.es}</div>
+          {QUESTIONS.filter((q) => q.cat === c.id).map((q) => {
+            const a = mark(q.id, "A"), b = mark(q.id, "B");
+            return (
+              <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", fontSize: 12.5 }}>
+                <span style={{ flex: 1, color: a && b ? C.inkSoft : C.ink, textDecoration: a && b ? "line-through" : "none" }}>{q.q}</span>
+                {[["A", a, witA], ["B", b, witB]].map(([L, on, name]) => (
+                  <span key={L} title={`Свидетель ${L} · ${name}`} style={{ width: 26, textAlign: "center", borderRadius: 6, fontWeight: 800, fontSize: 11.5, padding: "2px 0", background: on ? C.goldDeep : C.cream, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.goldDeep : C.line}` }}>{L}</span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
