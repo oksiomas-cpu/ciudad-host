@@ -175,6 +175,7 @@ export default function HostConsole() {
   const [room, setRoom] = useState(() => { try { return JSON.parse(localStorage.getItem("host_room_v1")) || null; } catch (e) { return null; } });
   const [roomBusy, setRoomBusy] = useState(false);
   const [roomErr, setRoomErr] = useState("");
+  const [rolesSent, setRolesSent] = useState(null); // {n, ok, msg} — статус отправки ролей раунда на пульты
   const loaded = useRef(false);
 
   // загрузка состояния
@@ -245,6 +246,30 @@ export default function HostConsole() {
 
   function startPrep() { setPrepLeft(PREP_DEFAULT); setPrepActive(true); }
 
+  // --- Роли на пульты игроков: имя в списке игры → playerId в комнате ---
+  function roomPid(name) {
+    if (!room || !name) return null;
+    const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+    return p ? p.id : null;
+  }
+  async function pushRoles(roundIdx) {
+    if (!room) return; // игра без комнаты — ручной режим, ничего не шлём
+    const rr = rolesForRound(order, roundIdx);
+    setRolesSent({ n: roundIdx + 1, ok: false, msg: "отправляю..." });
+    try {
+      const d = await api({
+        action: "start_round", code: room.code, round: roundIdx + 1, verbKey: chosen[roundIdx],
+        roles: {
+          canon: roomPid(players[rr.canon]),
+          fantasy: roomPid(players[rr.fantasy]),
+          detectives: rr.detectives.map((i) => roomPid(players[i])).filter(Boolean),
+        },
+      });
+      if (d.ok) setRolesSent({ n: roundIdx + 1, ok: true, msg: "" });
+      else setRolesSent({ n: roundIdx + 1, ok: false, msg: d.error || "не получилось" });
+    } catch (e) { setRolesSent({ n: roundIdx + 1, ok: false, msg: "сеть недоступна" }); }
+  }
+
   const verbByKey = (k) => VERBS.find((v) => v.key === k);
   const curVerb = phase !== "setup" && chosen[round] ? verbByKey(chosen[round]) : null;
   const { canon, fantasy, detectives } = phase !== "setup"
@@ -268,6 +293,7 @@ export default function HostConsole() {
   function startGame() {
     const s = {}; players.forEach((_, i) => (s[i] = 0));
     setScores(s); setRound(0); setQCount(0); setSolved(false); setBanner(""); setPhase("game"); startPrep();
+    pushRoles(0);
   }
 
   function addQuestion() {
@@ -302,6 +328,7 @@ export default function HostConsole() {
   function nextRound() {
     if (round >= 4) { setPhase("final"); return; }
     setRound(round + 1); setQCount(0); setSolved(false); setBanner(""); setTg(null); startPrep();
+    pushRoles(round + 1);
   }
 
   function makeTelegram() {
@@ -530,6 +557,16 @@ export default function HostConsole() {
           <RoleLine color={C.raspberry} label="Фантазия" name={players[fantasy]} />
           <RoleLine color={C.goldDeep} label="Детективы" name={detectives.map((d) => players[d]).join(" · ")} />
         </div>
+        {room && (
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px" }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: rolesSent && rolesSent.n === round + 1 && rolesSent.ok ? C.emeraldDeep : C.inkSoft }}>
+              {rolesSent && rolesSent.n === round + 1
+                ? (rolesSent.ok ? "📡 Роли и глагол отправлены на пульты игроков" : `⚠️ Роли не дошли: ${rolesSent.msg}`)
+                : "📡 Роли ещё не отправлены на пульты"}
+            </span>
+            <button onClick={() => pushRoles(round)} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "3px 10px", color: C.goldDeep, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF, fontWeight: 600 }}>↻ Отправить ещё раз</button>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
           <Btn bg={C.emerald} onClick={makeTelegram}>📨 Отправить глагол свидетелям</Btn>
           <Btn bg={C.goldDeep} onClick={nextRound}>{round >= 4 ? "→ К итогам" : "→ Следующий раунд"}</Btn>
