@@ -571,6 +571,7 @@ export default function HostConsole() {
         </div>
         {room && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px" }}>
+            <span style={{ background: C.raspberry, color: "#fff", borderRadius: 8, padding: "3px 10px", fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>Комната {room.code}</span>
             <span style={{ fontSize: 13.5, fontWeight: 600, color: rolesSent && rolesSent.n === round + 1 && rolesSent.ok ? C.emeraldDeep : C.inkSoft }}>
               {rolesSent && rolesSent.n === round + 1
                 ? (rolesSent.ok ? "📡 Роли и глагол отправлены на пульты игроков" : `⚠️ Роли не дошли: ${rolesSent.msg}`)
