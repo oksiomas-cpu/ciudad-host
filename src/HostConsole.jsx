@@ -662,11 +662,34 @@ export default function HostConsole() {
     }}>{banner}</div>
   ) : null;
 
-  // --- таймер подготовки (во всю ширину) ---
+  // --- таймер подготовки: компактный сбоку (wide) / полный (мобильный) ---
   const prepEl = prepActive ? (() => {
     const elapsed = PREP_DEFAULT - prepLeft;
     const ready = prepLeft <= PREP_MIN_LEFT; // прошёл минимум 3:00
     const accent = ready ? C.emerald : C.goldDeep;
+    if (wide) return (
+      <div style={{
+        background: C.card, border: `2px solid ${accent}`, borderRadius: 14,
+        padding: "12px 14px", marginBottom: 16, boxShadow: "0 2px 10px rgba(61,43,31,0.10)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.inkSoft }}>Подготовка свидетелей</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: accent, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{fmtTime(prepLeft)}</div>
+        </div>
+        <div style={{ position: "relative", height: 6, background: C.cream, borderRadius: 99, marginTop: 8 }}>
+          <div style={{ width: `${(elapsed / PREP_DEFAULT) * 100}%`, height: "100%", background: accent, borderRadius: 99, transition: "width 1s linear" }} />
+          <div style={{ position: "absolute", left: "60%", top: -3, width: 2, height: 12, background: C.goldDeep }} title="mínimo 3:00" />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <Btn bg={ready ? C.emerald : C.goldDeep} style={{ padding: "7px 12px", fontSize: 13.5 }}
+            onClick={() => { setPrepActive(false); setBanner("¡Empezamos! Детективы задают вопросы."); }}>
+            {ready ? "▶ Начать раунд" : "▶ Раньше"}
+          </Btn>
+          <Btn bg={C.gold} style={{ padding: "7px 12px", fontSize: 13.5 }} onClick={() => setPrepLeft((s) => Math.min(s + 60, 600))}>+1 мин</Btn>
+          <Btn bg="#B0A48C" style={{ padding: "7px 12px", fontSize: 13.5 }} onClick={() => setPrepActive(false)}>Скрыть</Btn>
+        </div>
+      </div>
+    );
     return (
       <div style={{
         background: C.card, border: `2px solid ${accent}`, borderRadius: 14,
@@ -985,12 +1008,16 @@ export default function HostConsole() {
       <div style={wrap}><div style={{ maxWidth: 1500, margin: "0 auto" }}>
         <Header round={round + 1} circle={circle} />
         {bannerEl}
-        {prepEl}
         <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 1fr) minmax(440px, 1.55fr) minmax(300px, 1fr)", gap: 18, alignItems: "start" }}>
-          <div>{verbCard}{storyCard}{dossierCard}</div>
+          <div>{verbCard}{dossierCard}{storyCard}</div>
           <div>{actionsCard}</div>
-          <div>{rolesCard}{scoreCard}{questionListCard}</div>
+          <div>{prepEl}{rolesCard}{scoreCard}</div>
         </div>
+        {rd0 && rd0.witAName && (
+          <Block stripe={C.goldDeep} style={{ marginTop: 4 }}>
+            <QuestionBoard asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} />
+          </Block>
+        )}
         <Footer onReset={resetAll} />
       </div></div>
     );
@@ -1028,7 +1055,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.8</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.9</div>
     </div>
   );
 }
@@ -1120,6 +1147,39 @@ function QuestionFeed({ asked, witA, witB, wide }) {
     </div>
   );
 }
+// Полноэкранная доска вопросов (wide-режим): всегда раскрыта, категории в 3 колонки
+function QuestionBoard({ asked, witA, witB }) {
+  const mark = (qid, w) => asked.some((a) => a.qid === qid && a.to === w);
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+        <h2 style={{ ...h2, margin: 0 }}>📋 Список вопросов · гашение по A и B</h2>
+        <span style={{ fontSize: 13, color: C.inkSoft }}>
+          <b style={{ color: C.goldDeep }}>A</b> — {witA} · <b style={{ color: C.goldDeep }}>B</b> — {witB} · золотая метка = вопрос уже задан этому свидетелю
+        </span>
+      </div>
+      <div style={{ columnCount: 3, columnGap: 22 }}>
+        {CATS.map((c) => (
+          <div key={c.id} style={{ breakInside: "avoid", marginBottom: 14, background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.goldDeep, margin: "2px 0 6px" }}>{c.icon} {c.es}</div>
+            {QUESTIONS.filter((q) => q.cat === c.id).map((q) => {
+              const a = mark(q.id, "A"), b = mark(q.id, "B");
+              return (
+                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 14.5, borderBottom: `1px dashed ${C.line}` }}>
+                  <span style={{ flex: 1, color: a && b ? C.inkSoft : C.ink, textDecoration: a && b ? "line-through" : "none" }}>{q.q}</span>
+                  {[["A", a], ["B", b]].map(([L, on]) => (
+                    <span key={L} style={{ width: 28, textAlign: "center", borderRadius: 6, fontWeight: 800, fontSize: 12.5, padding: "3px 0", background: on ? C.goldDeep : C.card, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.goldDeep : C.line}` }}>{L}</span>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuestionGrid({ asked, witA, witB }) {
   const [open, setOpen] = useState(false);
   const mark = (qid, w) => asked.some((a) => a.qid === qid && a.to === w);
