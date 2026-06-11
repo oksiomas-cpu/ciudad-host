@@ -165,6 +165,7 @@ export default function HostConsole() {
   const [qCount, setQCount] = useState(0); // вопросов задано в текущем раунде (0..27)
   const [scores, setScores] = useState({}); // index -> points
   const [solved, setSolved] = useState(false); // глагол этого раунда раскрыт/угадан
+  const [turnIdx, setTurnIdx] = useState(0); // чей ход: индекс детектива в раунде (0..2)
   const [banner, setBanner] = useState("");
   const [askWho, setAskWho] = useState(false); // показать выбор детектива
   const [tg, setTg] = useState(null); // текст рассылки
@@ -184,15 +185,15 @@ export default function HostConsole() {
     if (s) {
       setPhase(s.phase); setPlayers(s.players); setChosen(s.chosen);
       setOrder(s.order); setRound(s.round); setQCount(s.qCount);
-      setScores(s.scores); setSolved(s.solved);
+      setScores(s.scores); setSolved(s.solved); setTurnIdx(s.turnIdx || 0);
     }
     loaded.current = true;
   }, []);
   // сохранение
   useEffect(() => {
     if (!loaded.current) return;
-    saveState({ phase, players, chosen, order, round, qCount, scores, solved });
-  }, [phase, players, chosen, order, round, qCount, scores, solved]);
+    saveState({ phase, players, chosen, order, round, qCount, scores, solved, turnIdx });
+  }, [phase, players, chosen, order, round, qCount, scores, solved, turnIdx]);
 
   // тик таймера подготовки
   useEffect(() => {
@@ -277,7 +278,7 @@ export default function HostConsole() {
 
   // текущий круг по числу заданных вопросов
   const circle = qCount < 9 ? 1 : qCount < 18 ? 2 : 3;
-  const activeDetective = detectives.length ? detectives[qCount % 3] : null;
+  const activeDetective = detectives.length ? detectives[turnIdx % 3] : null;
   const dotsFilled = qCount - (circle - 1) * 9; // заполнено в текущем круге (0..9)
 
   function toggleVerb(k) {
@@ -292,12 +293,19 @@ export default function HostConsole() {
 
   function startGame() {
     const s = {}; players.forEach((_, i) => (s[i] = 0));
-    setScores(s); setRound(0); setQCount(0); setSolved(false); setBanner(""); setPhase("game"); startPrep();
+    setScores(s); setRound(0); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setPhase("game"); startPrep();
     pushRoles(0);
   }
 
+  // ход переходит следующему детективу по кругу; комната узнаёт сразу
+  function passTurn() {
+    const t = (turnIdx + 1) % 3;
+    setTurnIdx(t);
+    if (room) api({ action: "set_turn", code: room.code, turnIdx: t }).catch(() => {});
+  }
   function addQuestion() {
     if (solved || qCount >= 27) return;
+    passTurn();
     const n = qCount + 1; setQCount(n);
     if (n === 9) setBanner("Круг 1 завершён — детективы не угадали. Переходим к Кругу 2.");
     else if (n === 18) setBanner("Круг 2 завершён. Финальный Круг 3.");
@@ -327,7 +335,7 @@ export default function HostConsole() {
 
   function nextRound() {
     if (round >= 4) { setPhase("final"); return; }
-    setRound(round + 1); setQCount(0); setSolved(false); setBanner(""); setTg(null); startPrep();
+    setRound(round + 1); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setTg(null); startPrep();
     pushRoles(round + 1);
   }
 
@@ -403,6 +411,10 @@ export default function HostConsole() {
                 onChange={(e) => setPlayers(players.map((x, j) => (j === i ? e.target.value : x)))}
                 style={inp} />
             ))}
+            <button onClick={() => setPlayers(players.map((x, j) => (x.trim() ? x : `Тест${j + 1}`)))}
+              style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "5px 12px", color: C.inkSoft, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF }}>
+              🧪 Заполнить пустые тестовыми именами
+            </button>
           </div>
 
           <div style={{ marginTop: 16 }}>
@@ -638,6 +650,7 @@ export default function HostConsole() {
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Btn bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27}>+ Вопрос задан</Btn>
+              <Btn bg={C.gold} onClick={passTurn} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
               <Btn bg={C.emerald} onClick={() => setAskWho(true)}>✔ Глагол угадан</Btn>
               {qCount >= 27 && <Btn bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
             </div>
