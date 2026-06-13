@@ -1023,11 +1023,6 @@ export default function HostConsole() {
           <div>{actionsCard}</div>
           <div>{prepEl}{rolesCard}{scoreCard}</div>
         </div>
-        {rd0 && rd0.witAName && (
-          <Block stripe={C.goldDeep} style={{ marginTop: 4 }}>
-            <QuestionBoard asked={rd0.asked || []} witA={rd0.witAName} witB={rd0.witBName} ans={v.answers} />
-          </Block>
-        )}
         <Footer onReset={resetAll} />
       </div></div>
     );
@@ -1065,7 +1060,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.10</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.11</div>
     </div>
   );
 }
@@ -1242,3 +1237,4 @@ const inp = { width: "100%", boxSizing: "border-box", padding: "10px 12px", marg
 const tag = { fontSize: 11.5, letterSpacing: ".5px", color: C.goldDeep, fontWeight: 600, textTransform: "uppercase", marginBottom: 2 };
 const th = { textAlign: "left", padding: "6px 8px", borderBottom: `2px solid ${C.line}`, fontSize: 12, fontWeight: 700 };
 const td = { padding: "6px 8px", borderBottom: `1px solid ${C.line}`, fontSize: 12.5 };
+
