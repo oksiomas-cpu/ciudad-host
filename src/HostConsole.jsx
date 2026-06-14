@@ -134,7 +134,7 @@ function loadState() {
 
 // ---- Латинский квадрат ролей: каждый 1×Канон, 1×Фантазия, 3×Детектив ----
 function rolesForRound(order, r) {
-  const n = order.length;            // 5
+  const n = order.length;            // число игроков в раунде (3..7)
   const canon = order[r % n];
   const fantasy = order[(r + 1) % n];
   const detectives = order.filter((p) => p !== canon && p !== fantasy);
@@ -202,7 +202,7 @@ export default function HostConsole() {
   const [phase, setPhase] = useState("setup"); // setup | game | final
   const [players, setPlayers] = useState(["", "", "", "", ""]);
   const [chosen, setChosen] = useState([]); // keys of selected verbs (max 5)
-  const [order, setOrder] = useState([0, 1, 2, 3, 4]); // player indices
+  const [order, setOrder] = useState([]); // индексы игроков в порядке ротации (3..7), собирается при старте
   const [round, setRound] = useState(0); // 0..4
   const [qCount, setQCount] = useState(0); // вопросов задано в текущем раунде (0..27)
   const [scores, setScores] = useState({}); // index -> points
@@ -278,8 +278,9 @@ export default function HostConsole() {
   }
   function fillFromRoom() {
     if (!room) return;
-    const names = room.players.map((p) => p.name);
-    setPlayers([0, 1, 2, 3, 4].map((i) => names[i] || ""));
+    const names = (room.players || []).map((p) => p.name).slice(0, 7);
+    // минимум 3 слота для удобства ввода, иначе ровно сколько вошло (до 7)
+    setPlayers(names.length >= 3 ? names : [...names, ...Array(3 - names.length).fill("")]);
   }
   // опрос комнаты раз в 2 сек: в настройке (вход игроков) и во время игры (лента вопросов)
   useEffect(() => {
@@ -317,13 +318,15 @@ export default function HostConsole() {
     const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
     return p ? p.id : null;
   }
-  async function pushRoles(roundIdx) {
+  async function pushRoles(roundIdx, ordArg) {
     if (!room) return; // игра без комнаты — ручной режим, ничего не шлём
-    const rr = rolesForRound(order, roundIdx);
+    const ord = ordArg && ordArg.length ? ordArg : order;
+    const rr = rolesForRound(ord, roundIdx);
+    const vk = chosen.length ? chosen[roundIdx % chosen.length] : "";
     setRolesSent({ n: roundIdx + 1, ok: false, msg: "отправляю..." });
     try {
       const d = await api({
-        action: "start_round", code: room.code, round: roundIdx + 1, verbKey: chosen[roundIdx],
+        action: "start_round", code: room.code, round: roundIdx + 1, verbKey: vk,
         roles: {
           canon: roomPid(players[rr.canon]),
           fantasy: roomPid(players[rr.fantasy]),
@@ -338,34 +341,45 @@ export default function HostConsole() {
   }
 
   const verbByKey = (k) => VERBS.find((v) => v.key === k);
-  const curVerb = phase !== "setup" && chosen[round] ? verbByKey(chosen[round]) : null;
+  // Глагол раунда берётся из выбранного пула по кругу: chosen[round % длина].
+  // При длине пула ≥ 2 подряд один и тот же глагол не выпадает — «новый каждый раунд».
+  const curVerbKey = chosen.length ? chosen[round % chosen.length] : null;
+  const curVerb = phase !== "setup" && curVerbKey ? verbByKey(curVerbKey) : null;
   const { canon, fantasy, detectives } = phase !== "setup"
     ? rolesForRound(order, round) : { canon: null, fantasy: null, detectives: [] };
 
   // текущий круг по числу заданных вопросов
   const circle = qCount < 9 ? 1 : qCount < 18 ? 2 : 3;
-  const activeDetective = detectives.length ? detectives[turnIdx % 3] : null;
+  const activeDetective = detectives.length ? detectives[turnIdx % detectives.length] : null;
   const dotsFilled = qCount - (circle - 1) * 9; // заполнено в текущем круге (0..9)
 
   function toggleVerb(k) {
     setChosen((prev) =>
-      prev.includes(k) ? prev.filter((x) => x !== k) : prev.length < 5 ? [...prev, k] : prev
+      prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]
     );
   }
-  function distribute() { setOrder(shuffle([0, 1, 2, 3, 4])); }
+  // индексы заполненных слотов игроков (пустые игнорируются)
+  const filledIdxs = players.map((p, i) => (p.trim() ? i : -1)).filter((i) => i >= 0);
+  function distribute() { setOrder(shuffle(filledIdxs)); }
   function shuffle(a) { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; }
 
-  const canStart = players.every((p) => p.trim()) && chosen.length === 5;
+  // Старт: от 3 до 7 игроков, пул глаголов ≥ 2 (чтобы подряд не повторялись).
+  const canStart = filledIdxs.length >= 3 && filledIdxs.length <= 7 && chosen.length >= 2;
 
   function startGame() {
-    const s = {}; players.forEach((_, i) => (s[i] = 0));
+    // порядок = заполненные игроки; сохраняем превью-раскладку, если она по тому же составу
+    const sameSet = order.length === filledIdxs.length && filledIdxs.every((i) => order.includes(i));
+    const ord = sameSet ? order : shuffle(filledIdxs);
+    setOrder(ord);
+    const s = {}; filledIdxs.forEach((i) => (s[i] = 0));
     setScores(s); setRound(0); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setPhase("game"); startPrep();
-    pushRoles(0);
+    pushRoles(0, ord);
   }
 
   // ход переходит следующему детективу по кругу; комната узнаёт сразу
   function passTurn() {
-    const t = (turnIdx + 1) % 3;
+    const n = detectives.length || 1;
+    const t = (turnIdx + 1) % n;
     setTurnIdx(t);
     if (room) api({ action: "set_turn", code: room.code, turnIdx: t }).catch(() => {});
   }
@@ -500,11 +514,13 @@ export default function HostConsole() {
   }
   function manual(idx, pts) { award(pts, [idx]); }
 
+  // Раунды открытые: идут, пока ведущая не завершит игру. Без потолка в 5.
   function nextRound() {
-    if (round >= 4) { setPhase("final"); return; }
     setRound(round + 1); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setTg(null); startPrep();
     pushRoles(round + 1);
   }
+  // Ведущая решает, когда игра окончена → экран итогов.
+  function finishGame() { setPhase("final"); }
 
   function makeTelegram() {
     const v = curVerb;
@@ -519,7 +535,7 @@ export default function HostConsole() {
 
   function resetAll() {
     setPhase("setup"); setPlayers(["", "", "", "", ""]); setChosen([]);
-    setOrder([0, 1, 2, 3, 4]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
+    setOrder([]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
   }
 
   // ---------- ОБЩИЙ КАРКАС ----------
@@ -550,7 +566,7 @@ export default function HostConsole() {
                 <div style={{ fontSize: 13, color: C.inkSoft }}>Код игры — продиктуй или кинь в чат Zoom:</div>
                 <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: 8, color: C.raspberry, margin: "4px 0" }}>{room.code}</div>
               </div>
-              <Label>Вошли ({(room.players || []).length}/5)</Label>
+              <Label>Вошли ({(room.players || []).length}/7)</Label>
               {(room.players || []).length === 0 && (
                 <p style={{ ...pHint, marginTop: 6 }}>Пока никого — жду игроков...</p>
               )}
@@ -569,23 +585,38 @@ export default function HostConsole() {
         </Block>
         <Block stripe={C.gold}>
           <h2 style={h2}>Настройка игры</h2>
-          <p style={pHint}>5 участников и 5 глаголов из пула. Роли распределит система.</p>
+          <p style={pHint}>От 3 до 7 участников и минимум 2 глагола из пула. Раунды идут, пока ты не завершишь игру. Роли крутятся по кругу.</p>
 
           <div style={{ marginTop: 12 }}>
-            <Label>Участники (5)</Label>
+            <Label>Участники ({filledIdxs.length} · можно 3–7)</Label>
             {players.map((p, i) => (
-              <input key={i} value={p} placeholder={`Игрок ${i + 1}`}
-                onChange={(e) => setPlayers(players.map((x, j) => (j === i ? e.target.value : x)))}
-                style={inp} />
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input value={p} placeholder={`Игрок ${i + 1}`}
+                  onChange={(e) => setPlayers(players.map((x, j) => (j === i ? e.target.value : x)))}
+                  style={{ ...inp, flex: 1 }} />
+                {players.length > 3 && (
+                  <button onClick={() => setPlayers(players.filter((_, j) => j !== i))}
+                    title="Убрать слот" style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 8, width: 38, height: 38, marginBottom: 8, color: C.raspberry, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>✕</button>
+                )}
+              </div>
             ))}
-            <button onClick={() => setPlayers(players.map((x, j) => (x.trim() ? x : `Тест${j + 1}`)))}
-              style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "5px 12px", color: C.inkSoft, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF }}>
-              🧪 Заполнить пустые тестовыми именами
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
+              {players.length < 7 && (
+                <button onClick={() => setPlayers([...players, ""])}
+                  style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "5px 12px", color: C.emeraldDeep, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF, fontWeight: 600 }}>
+                  + Добавить игрока
+                </button>
+              )}
+              <button onClick={() => setPlayers(players.map((x, j) => (x.trim() ? x : `Тест${j + 1}`)))}
+                style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "5px 12px", color: C.inkSoft, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF }}>
+                🧪 Заполнить пустые тестовыми именами
+              </button>
+            </div>
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <Label>Глаголы раундов — выбрано {chosen.length}/5</Label>
+            <Label>Глаголы — пул (выбрано {chosen.length}, нужно ≥ 2)</Label>
+            <p style={{ ...pHint, marginTop: 0 }}>Каждый раунд берётся следующий по кругу — подряд один и тот же не выпадет.</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {VERBS.map((v) => {
                 const on = chosen.includes(v.key);
@@ -597,7 +628,7 @@ export default function HostConsole() {
                     borderRadius: 999, padding: "7px 13px", fontSize: 14, fontFamily: SERIF,
                     cursor: "pointer", fontWeight: on ? 700 : 500,
                   }}>
-                    {v.emoji} {v.inf}{on ? ` · R${idx + 1}` : ""}
+                    {v.emoji} {v.inf}{on ? ` · #${idx + 1}` : ""}
                   </button>
                 );
               })}
@@ -605,8 +636,8 @@ export default function HostConsole() {
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <Label>Раскладка ролей (превью)</Label>
-            <RolesPreview players={players} order={order} chosen={chosen} />
+            <Label>Раскладка ролей (превью первого круга)</Label>
+            <RolesPreview players={players} order={order} chosen={chosen} filledIdxs={filledIdxs} />
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
               <Btn bg={C.goldDeep} onClick={distribute}>🎲 Распределить / Перераспределить</Btn>
             </div>
@@ -618,7 +649,7 @@ export default function HostConsole() {
               ✦ Сохранить и начать игру
             </Btn>
             {!canStart && <p style={{ ...pHint, color: C.raspberry, marginTop: 8 }}>
-              Заполни все 5 имён и выбери ровно 5 глаголов.</p>}
+              Нужно от 3 до 7 имён и минимум 2 глагола.</p>}
           </div>
         </Block>
         <Footer onReset={resetAll} />
@@ -744,7 +775,7 @@ export default function HostConsole() {
   // === ЛЕВАЯ ЗОНА — мир глагола (читаю, не нажимаю) ===
   const verbCard = (
     <Block stripe={C.gold}>
-      <div style={tag}>Раунд {round + 1} / 5 · только для ведущего</div>
+      <div style={tag}>Раунд {round + 1} · только для ведущего</div>
       <div style={{ fontSize: wide ? 46 : 40, fontWeight: 700, lineHeight: 1.1, color: C.ink }}>
         {v.emoji} {v.inf}
       </div>
@@ -820,7 +851,7 @@ export default function HostConsole() {
 
   const scoreCard = (
     <Block stripe={C.gold}>
-      <h2 style={h2}>Счёт <span style={{ fontWeight: 400, fontSize: 13, color: C.inkSoft }}>· копится через все 5 раундов</span></h2>
+      <h2 style={h2}>Счёт <span style={{ fontWeight: 400, fontSize: 13, color: C.inkSoft }}>· копится через все раунды</span></h2>
       {order.map((i) => {
         const role = i === canon ? ["Канон", C.emerald] : i === fantasy ? ["Фантазия", C.raspberry] : ["Детектив", C.goldDeep];
         return (
@@ -1004,9 +1035,12 @@ export default function HostConsole() {
         </div>
       )}
 
-      <div style={{ marginTop: 16 }}>
-        <Btn big={wide} bg={solved ? C.emerald : C.goldDeep} onClick={nextRound} style={{ width: "100%" }}>
-          {round >= 4 ? "→ К итогам" : "→ Следующий раунд"}
+      <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <Btn big={wide} bg={solved ? C.emerald : C.goldDeep} onClick={nextRound} style={{ flex: 1, minWidth: 200 }}>
+          → Следующий раунд
+        </Btn>
+        <Btn big={wide} bg={C.raspberry} onClick={finishGame} title="Завершить игру и показать итоговую таблицу — раундов столько, сколько решишь">
+          🏁 Завершить игру → итоги
         </Btn>
       </div>
     </Block>
@@ -1050,7 +1084,7 @@ function Header({ round, circle }) {
     <div style={{ textAlign: "center", marginBottom: 18 }}>
       <div style={{ fontSize: 12, letterSpacing: "2px", color: C.goldDeep, fontWeight: 600 }}>LA CIUDAD DE LOS SENTIDOS</div>
       <div style={{ fontSize: 26, fontWeight: 700, color: C.ink, fontFamily: SERIF }}>La Cata a Ciegas · Пульт ведущего</div>
-      {round && <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 2 }}>Раунд {round}/5 · Круг {circle}/3</div>}
+      {round && <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 2 }}>Раунд {round} · Круг {circle}/3</div>}
     </div>
   );
 }
@@ -1060,7 +1094,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.11</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.12</div>
     </div>
   );
 }
@@ -1084,10 +1118,14 @@ function RoleLine({ color, label, name }) {
     </div>
   );
 }
-function RolesPreview({ players, order, chosen }) {
-  if (!players.every((p) => p.trim()) || chosen.length !== 5) {
-    return <p style={pHint}>Заполни имена и выбери 5 глаголов, чтобы увидеть раскладку.</p>;
+function RolesPreview({ players, order, chosen, filledIdxs }) {
+  const filled = filledIdxs || players.map((p, i) => (p.trim() ? i : -1)).filter((i) => i >= 0);
+  if (filled.length < 3 || chosen.length < 2) {
+    return <p style={pHint}>Заполни 3–7 имён и выбери минимум 2 глагола, чтобы увидеть раскладку.</p>;
   }
+  // порядок ротации: распределённый, если он по тому же составу; иначе по списку
+  const ord = order.length === filled.length && filled.every((i) => order.includes(i)) ? order : filled;
+  const rounds = ord.length; // один полный круг ролей
   return (
     <div style={{ marginTop: 6, fontSize: 13, overflowX: "auto" }}>
       <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 420 }}>
@@ -1100,13 +1138,13 @@ function RolesPreview({ players, order, chosen }) {
           </tr>
         </thead>
         <tbody>
-          {chosen.map((k, r) => {
-            const { canon, fantasy, detectives } = rolesForRound(order, r);
-            const v = VERBS.find((x) => x.key === k);
+          {Array.from({ length: rounds }).map((_, r) => {
+            const { canon, fantasy, detectives } = rolesForRound(ord, r);
+            const v = VERBS.find((x) => x.key === chosen[r % chosen.length]);
             return (
               <tr key={r}>
                 <td style={td}>{r + 1}</td>
-                <td style={{ ...td, fontWeight: 600 }}>{v.emoji} {v.inf}</td>
+                <td style={{ ...td, fontWeight: 600 }}>{v ? `${v.emoji} ${v.inf}` : "—"}</td>
                 <td style={td}>{players[canon]}</td>
                 <td style={td}>{players[fantasy]}</td>
                 <td style={td}>{detectives.map((d) => players[d]).join(", ")}</td>
@@ -1115,6 +1153,7 @@ function RolesPreview({ players, order, chosen }) {
           })}
         </tbody>
       </table>
+      <p style={{ ...pHint, marginTop: 6 }}>Это один полный круг ролей. Дальше роли продолжают крутиться, раундов — сколько решишь.</p>
     </div>
   );
 }
