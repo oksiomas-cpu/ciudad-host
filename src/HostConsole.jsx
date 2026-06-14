@@ -326,6 +326,13 @@ export default function HostConsole() {
     const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
     return !!(p && p.left);
   }
+  // Игрок играет голосом (mode==="voice") — без блока вопросов на своём пульте, сам двигает ход.
+  // Чисто информационная пометка для ведущей: за него ничего фиксировать не нужно.
+  function isVoice(name) {
+    if (!room || !name) return false;
+    const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+    return !!(p && p.mode === "voice");
+  }
   // Ведущая отмечает ушедшего (страховка, если у игрока не нажалось). Тот же серверный action leave.
   async function leaveByHost(name) {
     const pid = roomPid(name);
@@ -836,10 +843,13 @@ export default function HostConsole() {
     <Block stripe={C.goldDeep}>
       <h2 style={h2}>Роли раунда</h2>
       <div style={{ marginTop: 8, fontSize: wide ? 15.5 : 14.5, lineHeight: 1.6 }}>
-        <RoleLine color={C.emerald} label="Канон" name={players[canon]} />
-        <RoleLine color={C.raspberry} label="Фантазия" name={players[fantasy]} />
-        <RoleLine color={C.goldDeep} label="Детективы" name={detectives.map((d) => players[d]).join(" · ")} />
+        <RoleLine color={C.emerald} label="Канон" name={players[canon] ? players[canon] + (isVoice(players[canon]) ? " 🎙" : "") : players[canon]} />
+        <RoleLine color={C.raspberry} label="Фантазия" name={players[fantasy] ? players[fantasy] + (isVoice(players[fantasy]) ? " 🎙" : "") : players[fantasy]} />
+        <RoleLine color={C.goldDeep} label="Детективы" name={detectives.map((d) => players[d] + (isVoice(players[d]) ? " 🎙" : "")).join(" · ")} />
       </div>
+      {(detectives.some((d) => isVoice(players[d])) || isVoice(players[canon]) || isVoice(players[fantasy])) && (
+        <p style={{ ...pHint, marginTop: 6 }}>🎙 — играет голосом (без вопросника). За него ничего не фиксируешь: вопрос задаёт вслух, ход двигает сам.</p>
+      )}
       {rd0 && rd0.witAName && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, fontSize: 13.5 }}>
           {[["A", rd0.witAName], ["B", rd0.witBName]].map(([L, nm]) => {
@@ -920,6 +930,7 @@ export default function HostConsole() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 <span style={{ fontSize: 14 }}>{gone ? "🚪" : "🟢"}</span>
                 <span style={{ fontWeight: 600, fontSize: 15, color: gone ? C.inkSoft : C.ink, textDecoration: gone ? "line-through" : "none", opacity: gone ? 0.6 : 1 }}>{nm}</span>
+                {!gone && isVoice(nm) && <span style={{ fontSize: 11.5, color: C.goldDeep, fontWeight: 700, background: "#FBF3E0", border: `1px solid ${C.gold}`, borderRadius: 8, padding: "1px 7px" }}>🎙 голосом</span>}
                 {gone && <span style={{ fontSize: 11.5, color: C.raspberry, fontWeight: 700 }}>вышел</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1154,7 +1165,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.13</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.14</div>
     </div>
   );
 }
