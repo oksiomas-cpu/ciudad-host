@@ -203,6 +203,7 @@ export default function HostConsole() {
   const [players, setPlayers] = useState(["", "", "", "", ""]);
   const [chosen, setChosen] = useState([]); // keys of selected verbs (max 5)
   const [order, setOrder] = useState([]); // индексы игроков в порядке ротации (3..7), собирается при старте
+  const [roundOrder, setRoundOrder] = useState([]); // активный порядок ТЕКУЩЕГО раунда (без ушедших); пересобирается только в startGame/nextRound — текущий раунд стабилен
   const [round, setRound] = useState(0); // 0..4
   const [qCount, setQCount] = useState(0); // вопросов задано в текущем раунде (0..27)
   const [scores, setScores] = useState({}); // index -> points
@@ -235,14 +236,15 @@ export default function HostConsole() {
       setPhase(s.phase); setPlayers(s.players); setChosen(s.chosen);
       setOrder(s.order); setRound(s.round); setQCount(s.qCount);
       setScores(s.scores); setSolved(s.solved); setTurnIdx(s.turnIdx || 0);
+      setRoundOrder(s.roundOrder && s.roundOrder.length ? s.roundOrder : s.order);
     }
     loaded.current = true;
   }, []);
   // сохранение
   useEffect(() => {
     if (!loaded.current) return;
-    saveState({ phase, players, chosen, order, round, qCount, scores, solved, turnIdx });
-  }, [phase, players, chosen, order, round, qCount, scores, solved, turnIdx]);
+    saveState({ phase, players, chosen, order, roundOrder, round, qCount, scores, solved, turnIdx });
+  }, [phase, players, chosen, order, roundOrder, round, qCount, scores, solved, turnIdx]);
 
   // тик таймера подготовки
   useEffect(() => {
@@ -318,9 +320,22 @@ export default function HostConsole() {
     const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
     return p ? p.id : null;
   }
+  // Игрок вышел НАВСЕГДА (флаг left на room.players по имени). Отличается от eliminated (выбыл в одном раунде).
+  function isLeft(name) {
+    if (!room || !name) return false;
+    const p = (room.players || []).find((x) => x.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+    return !!(p && p.left);
+  }
+  // Ведущая отмечает ушедшего (страховка, если у игрока не нажалось). Тот же серверный action leave.
+  async function leaveByHost(name) {
+    const pid = roomPid(name);
+    if (!room || !pid) return;
+    if (!window.confirm(`Отметить, что ${name} вышел(а) из игры? Со следующего раунда не участвует, очки сохранятся.`)) return;
+    try { await api({ action: "leave", code: room.code, playerId: pid }); } catch (e) {}
+  }
   async function pushRoles(roundIdx, ordArg) {
     if (!room) return; // игра без комнаты — ручной режим, ничего не шлём
-    const ord = ordArg && ordArg.length ? ordArg : order;
+    const ord = ordArg && ordArg.length ? ordArg : (roundOrder && roundOrder.length ? roundOrder : order);
     const rr = rolesForRound(ord, roundIdx);
     const vk = chosen.length ? chosen[roundIdx % chosen.length] : "";
     setRolesSent({ n: roundIdx + 1, ok: false, msg: "отправляю..." });
@@ -345,8 +360,11 @@ export default function HostConsole() {
   // При длине пула ≥ 2 подряд один и тот же глагол не выпадает — «новый каждый раунд».
   const curVerbKey = chosen.length ? chosen[round % chosen.length] : null;
   const curVerb = phase !== "setup" && curVerbKey ? verbByKey(curVerbKey) : null;
+  // Роли ТЕКУЩЕГО раунда считаем по roundOrder (стабилен — уход игрока не перетасовывает текущий раунд).
+  // Фоллбэк на order для старых сохранений без roundOrder.
+  const activeOrder = (roundOrder && roundOrder.length) ? roundOrder : order;
   const { canon, fantasy, detectives } = phase !== "setup"
-    ? rolesForRound(order, round) : { canon: null, fantasy: null, detectives: [] };
+    ? rolesForRound(activeOrder, round) : { canon: null, fantasy: null, detectives: [] };
 
   // текущий круг по числу заданных вопросов
   const circle = qCount < 9 ? 1 : qCount < 18 ? 2 : 3;
@@ -371,6 +389,7 @@ export default function HostConsole() {
     const sameSet = order.length === filledIdxs.length && filledIdxs.every((i) => order.includes(i));
     const ord = sameSet ? order : shuffle(filledIdxs);
     setOrder(ord);
+    setRoundOrder(ord); // первый раунд играет полный состав
     const s = {}; filledIdxs.forEach((i) => (s[i] = 0));
     setScores(s); setRound(0); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setPhase("game"); startPrep();
     pushRoles(0, ord);
@@ -516,8 +535,11 @@ export default function HostConsole() {
 
   // Раунды открытые: идут, пока ведущая не завершит игру. Без потолка в 5.
   function nextRound() {
+    // следующий раунд пересобираем БЕЗ ушедших; текущий раунд доигрывался прежним составом
+    const nextOrder = order.filter((i) => !isLeft(players[i]));
+    setRoundOrder(nextOrder);
     setRound(round + 1); setQCount(0); setSolved(false); setTurnIdx(0); setBanner(""); setTg(null); startPrep();
-    pushRoles(round + 1);
+    pushRoles(round + 1, nextOrder);
   }
   // Ведущая решает, когда игра окончена → экран итогов.
   function finishGame() { setPhase("final"); }
@@ -535,7 +557,7 @@ export default function HostConsole() {
 
   function resetAll() {
     setPhase("setup"); setPlayers(["", "", "", "", ""]); setChosen([]);
-    setOrder([]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
+    setOrder([]); setRoundOrder([]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
   }
 
   // ---------- ОБЩИЙ КАРКАС ----------
@@ -667,19 +689,24 @@ export default function HostConsole() {
         <Block stripe={C.gold}>
           <h2 style={{ ...h2, textAlign: "center" }}>🏆 Итоги игры</h2>
           <div style={{ marginTop: 8 }}>
-            {ranking.map((r, k) => (
+            {ranking.map((r, k) => {
+              const gone = isLeft(players[r.i]);
+              const champ = k === 0 && !gone;
+              return (
               <div key={r.i} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "12px 14px", marginBottom: 8, borderRadius: 10,
-                background: k === 0 ? C.goldSoft : C.cream,
-                border: `1px solid ${k === 0 ? C.gold : C.line}`,
+                background: champ ? C.goldSoft : C.cream,
+                border: `1px solid ${champ ? C.gold : C.line}`,
+                opacity: gone ? 0.6 : 1,
               }}>
-                <span style={{ fontWeight: k === 0 ? 700 : 600, fontSize: 17 }}>
-                  {k === 0 ? "👑 " : `${k + 1}. `}{players[r.i]}
+                <span style={{ fontWeight: champ ? 700 : 600, fontSize: 17, color: gone ? C.inkSoft : C.ink, textDecoration: gone ? "line-through" : "none" }}>
+                  {champ ? "👑 " : `${k + 1}. `}{players[r.i]}{gone && <span style={{ fontSize: 12.5, color: C.raspberry, fontWeight: 700, textDecoration: "none" }}> · вышел</span>}
                 </span>
-                <span style={{ fontWeight: 700, color: C.raspberry, fontSize: 18 }}>{r.pts}</span>
+                <span style={{ fontWeight: 700, color: gone ? C.inkSoft : C.raspberry, fontSize: 18 }}>{r.pts}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
           <Btn bg={C.emerald} onClick={resetAll} style={{ width: "100%", marginTop: 14, padding: 13 }}>
             Новая игра
@@ -854,11 +881,14 @@ export default function HostConsole() {
       <h2 style={h2}>Счёт <span style={{ fontWeight: 400, fontSize: 13, color: C.inkSoft }}>· копится через все раунды</span></h2>
       {order.map((i) => {
         const role = i === canon ? ["Канон", C.emerald] : i === fantasy ? ["Фантазия", C.raspberry] : ["Детектив", C.goldDeep];
+        const gone = isLeft(players[i]);
         return (
-          <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px dashed ${C.line}` }}>
+          <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px dashed ${C.line}`, opacity: gone ? 0.6 : 1 }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: wide ? 16 : 15 }}>{players[i]}</div>
-              <span style={{ fontSize: 12, color: "#fff", background: role[1], borderRadius: 6, padding: "1px 7px" }}>{role[0]}</span>
+              <div style={{ fontWeight: 600, fontSize: wide ? 16 : 15, color: gone ? C.inkSoft : C.ink, textDecoration: gone ? "line-through" : "none" }}>{players[i]}</div>
+              {gone
+                ? <span style={{ fontSize: 12, color: "#fff", background: "#B0A48C", borderRadius: 6, padding: "1px 7px" }}>вышел</span>
+                : <span style={{ fontSize: 12, color: "#fff", background: role[1], borderRadius: 6, padding: "1px 7px" }}>{role[0]}</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontWeight: 700, fontSize: wide ? 22 : 20, color: C.goldDeep, minWidth: 34, textAlign: "right" }}>{scores[i] || 0}</span>
@@ -876,6 +906,35 @@ export default function HostConsole() {
       <p style={{ ...pHint, marginTop: 8 }}>Кнопки +5 / +3 / +1 / −1 — ручная корректировка ведущим.</p>
     </Block>
   );
+
+  // === СОСТАВ — кто в игре, кто вышел (живые/ушедшие) ===
+  const composicionCard = room ? (
+    <Block stripe={C.emerald}>
+      <h2 style={h2}>Состав <span style={{ fontWeight: 400, fontSize: 13, color: C.inkSoft }}>· кто в игре</span></h2>
+      <div style={{ marginTop: 8 }}>
+        {order.map((i) => {
+          const nm = players[i];
+          const gone = isLeft(nm);
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px dashed ${C.line}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 14 }}>{gone ? "🚪" : "🟢"}</span>
+                <span style={{ fontWeight: 600, fontSize: 15, color: gone ? C.inkSoft : C.ink, textDecoration: gone ? "line-through" : "none", opacity: gone ? 0.6 : 1 }}>{nm}</span>
+                {gone && <span style={{ fontSize: 11.5, color: C.raspberry, fontWeight: 700 }}>вышел</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 16, color: gone ? C.inkSoft : C.goldDeep, opacity: gone ? 0.6 : 1 }}>{scores[i] || 0}</span>
+                {!gone && roomPid(nm) && (
+                  <button onClick={() => leaveByHost(nm)} title="Отметить, что игрок вышел из игры" style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "3px 9px", color: C.raspberry, fontSize: 11.5, cursor: "pointer", fontFamily: SERIF, fontWeight: 600 }}>вышел</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ ...pHint, marginTop: 8 }}>Ушедшие со следующего раунда не получают роли и не крутятся в очереди детективов. Кнопка «вышел» — страховка, если у игрока не нажалось.</p>
+    </Block>
+  ) : null;
 
   const questionListCard = rd0 && rd0.witAName ? (
     <Block stripe={C.goldDeep}>
@@ -1055,7 +1114,7 @@ export default function HostConsole() {
         <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 1fr) minmax(440px, 1.55fr) minmax(300px, 1fr)", gap: 18, alignItems: "start" }}>
           <div>{verbCard}{dossierCard}{storyCard}</div>
           <div>{actionsCard}</div>
-          <div>{prepEl}{rolesCard}{scoreCard}</div>
+          <div>{prepEl}{rolesCard}{scoreCard}{composicionCard}</div>
         </div>
         <Footer onReset={resetAll} />
       </div></div>
@@ -1072,6 +1131,7 @@ export default function HostConsole() {
       {actionsCard}
       {storyCard}
       {scoreCard}
+      {composicionCard}
       {questionListCard}
       <Footer onReset={resetAll} />
     </div></div>
@@ -1094,7 +1154,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.12</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.13</div>
     </div>
   );
 }
