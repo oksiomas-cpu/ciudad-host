@@ -10,6 +10,9 @@
 // (verdict), принудительное завершение раунда (end_round).
 // Право первой попытки — у детектива, задавшего вопрос (голосом, без кнопки);
 // кнопка «рука» — заявка остальных, слово даёт ведущая.
+// Этап 3, шаг 3: после вскрытия раунда (verdict→doReveal) — для игроков
+// с p.tgId слить очки раунда в score:{tgId}.{detective|canon|fantasia}
+// (HINCRBY) и один раз за игру (комнату) +1 в user:{tgId}.gamesPlayed.
 // ============================================================
 
 const TTL = String(60 * 60 * 12); // игра живёт в базе 12 часов
@@ -43,9 +46,15 @@ function setGame(g) {
 
 // Тайное голосование: до вскрытия наружу уходит только КТО проголосовал, не ЗА КОГО
 function pub(g) {
-  if (!g || !g.round || !g.round.votes || g.round.revealed) return g;
+  if (!g) return g;
+  // tgId — внутреннее поле для моста с копилкой (Этап 3), наружу не отдаём
+  const players = (g.players || []).map((p) => {
+    const { tgId, ...rest } = p;
+    return rest;
+  });
+  if (!g.round || !g.round.votes || g.round.revealed) return { ...g, players };
   const round = { ...g.round, votedIds: Object.keys(g.round.votes), votes: undefined };
-  return { ...g, round };
+  return { ...g, players, round };
 }
 
 function aliveDets(g) {
@@ -146,6 +155,31 @@ function doReveal(g, guessedBy, guessedByName) {
     ts: Date.now(),
   };
   rd.guess = null;
+}
+
+// Этап 3, шаг 3: слить очки этого раунда в общую копилку score:{tgId} по роли
+// (только для игроков с известным tgId — вошли через Telegram Mini App) и
+// один раз за игру (комнату) засчитать gamesPlayed для лиг.
+async function syncRoundScores(g) {
+  const rd = g.round || {};
+  const roles = rd.roles || {};
+  const dets = roles.detectives || [];
+  g.gpCounted = g.gpCounted || [];
+  for (const p of g.players || []) {
+    if (!p.tgId) continue;
+    const role = p.id === roles.canon ? "canon"
+      : p.id === roles.fantasy ? "fantasia"
+      : dets.includes(p.id) ? "detective"
+      : null;
+    const delta = (g.scores && g.scores[p.id] && g.scores[p.id].r) || 0;
+    if (role && delta > 0) {
+      await cmd(["HINCRBY", `score:${p.tgId}`, role, String(delta)]).catch(() => {});
+    }
+    if (!g.gpCounted.includes(p.tgId)) {
+      g.gpCounted.push(p.tgId);
+      await cmd(["HINCRBY", `user:${p.tgId}`, "gamesPlayed", "1"]).catch(() => {});
+    }
+  }
 }
 
 export default async function handler(req, res) {
@@ -479,7 +513,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: false, error: "Сейчас нет голосования" });
       }
       g.round.votesDone = true;
-      if (g.round.guess.endRound) doReveal(g, null, null);
+      if (g.round.guess.endRound) { doReveal(g, null, null); await syncRoundScores(g); }
       else g.round.guess.stage = "naming";
       g.v++;
       await setGame(g);
@@ -494,6 +528,7 @@ export default async function handler(req, res) {
       const gu = g.round.guess;
       if (body.correct) {
         doReveal(g, gu.by, gu.byName);
+        await syncRoundScores(g);
       } else {
         // неверный глагол → выбывание до конца раунда, ложь НЕ раскрывается
         g.round.eliminated = g.round.eliminated || [];
@@ -504,6 +539,7 @@ export default async function handler(req, res) {
         if (!aliveDets(g).length) {
           // все детективы выбыли → раунд завершается, очки свидетелям
           doReveal(g, null, null);
+          await syncRoundScores(g);
         } else {
           fixTurn(g);
         }
@@ -522,6 +558,7 @@ export default async function handler(req, res) {
       }
       if (g.round.votesDone) {
         doReveal(g, null, null);
+        await syncRoundScores(g);
       } else if (g.round.guess && g.round.guess.stage === "voting") {
         // голосование уже идёт — просто помечаем: после последнего голоса будет вскрытие
         g.round.guess.endRound = true;
