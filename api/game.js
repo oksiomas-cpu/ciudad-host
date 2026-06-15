@@ -160,6 +160,18 @@ function doReveal(g, guessedBy, guessedByName) {
 // Этап 3, шаг 3: слить очки этого раунда в общую копилку score:{tgId} по роли
 // (только для игроков с известным tgId — вошли через Telegram Mini App) и
 // один раз за игру (комнату) засчитать gamesPlayed для лиг.
+// ВАЖНО: score:{tgId} — Redis HASH (HINCRBY ок), а user:{tgId} у Don Verbo —
+// JSON-блоб (redis.get/set с JSON.stringify), HINCRBY на нём не работает —
+// правим через GET → JSON.parse → +1 → SET, тот же паттерн, что в lib/engine.js.
+async function bumpGamesPlayed(tgId) {
+  try {
+    const raw = await cmd(["GET", `user:${tgId}`]);
+    if (!raw) return; // профиля Don Verbo нет — не создаём его отсюда
+    const u = JSON.parse(raw);
+    u.gamesPlayed = (typeof u.gamesPlayed === "number" ? u.gamesPlayed : 0) + 1;
+    await cmd(["SET", `user:${tgId}`, JSON.stringify(u)]);
+  } catch (_) {}
+}
 async function syncRoundScores(g) {
   const rd = g.round || {};
   const roles = rd.roles || {};
@@ -177,7 +189,7 @@ async function syncRoundScores(g) {
     }
     if (!g.gpCounted.includes(p.tgId)) {
       g.gpCounted.push(p.tgId);
-      await cmd(["HINCRBY", `user:${p.tgId}`, "gamesPlayed", "1"]).catch(() => {});
+      await bumpGamesPlayed(p.tgId);
     }
   }
 }
