@@ -13,9 +13,17 @@
 // Этап 3, шаг 3: после вскрытия раунда (verdict→doReveal) — для игроков
 // с p.tgId слить очки раунда в score:{tgId}.{detective|canon|fantasia}
 // (HINCRBY) и один раз за игру (комнату) +1 в user:{tgId}.gamesPlayed.
+// Этап 3, шаг 4: close_game — ведущая закрывает комнату.
+// Для каждого участника с tgId (не в TEST_IDS) ставит флаг
+// needsLeagueCheck:true в user:{tgId}. Don Verbo cron при следующем
+// запуске видит флаг, проверяет лигу и шлёт сообщение участнику.
 // ============================================================
 
 const TTL = String(60 * 60 * 12); // игра живёт в базе 12 часов
+
+// Telegram ID тест-аккаунтов (репетитор / Оксана Майкова).
+// Исключаются из gamesPlayed, voronka и league check.
+const TEST_IDS = ['316593124'];
 
 function env() {
   return {
@@ -164,6 +172,8 @@ function doReveal(g, guessedBy, guessedByName) {
 // JSON-блоб (redis.get/set с JSON.stringify), HINCRBY на нём не работает —
 // правим через GET → JSON.parse → +1 → SET, тот же паттерн, что в lib/engine.js.
 async function bumpGamesPlayed(tgId) {
+  // Тест-аккаунты (репетитор) не считаются
+  if (TEST_IDS.includes(String(tgId))) return;
   try {
     const raw = await cmd(["GET", `user:${tgId}`]);
     if (!raw) return; // профиля Don Verbo нет — не создаём его отсюда
@@ -191,6 +201,23 @@ async function syncRoundScores(g) {
       g.gpCounted.push(p.tgId);
       await bumpGamesPlayed(p.tgId);
     }
+  }
+}
+
+// Этап 3, шаг 4: закрытие комнаты ведущей.
+// Ставит флаг needsLeagueCheck:true каждому клубному участнику (есть user:{tgId}).
+// Don Verbo cron при следующем запуске заберёт флаг и пошлёт сообщение о лиге.
+async function markLeagueCheck(g) {
+  for (const p of g.players || []) {
+    if (!p.tgId) continue;
+    if (TEST_IDS.includes(String(p.tgId))) continue; // репетитор — пропускаем
+    try {
+      const raw = await cmd(["GET", `user:${p.tgId}`]);
+      if (!raw) continue; // гость без аккаунта в клубе
+      const u = JSON.parse(raw);
+      u.needsLeagueCheck = true;
+      await cmd(["SET", `user:${p.tgId}`, JSON.stringify(u)]);
+    } catch (_) {}
   }
 }
 
@@ -582,6 +609,18 @@ export default async function handler(req, res) {
       g.v++;
       await setGame(g);
       return res.status(200).json({ ok: true, game: pub(g) });
+    }
+
+    // --- Этап 3, шаг 4: ведущая закрывает комнату после просмотра результатов ---
+    // Ставит needsLeagueCheck:true каждому клубному участнику.
+    // Don Verbo cron при следующем запуске обработает флаг.
+    if (action === "close_game") {
+      await markLeagueCheck(g);
+      g.phase = "closed";
+      g.closedAt = new Date().toISOString();
+      g.v++;
+      await setGame(g);
+      return res.status(200).json({ ok: true, closed: true });
     }
 
     // --- Игрок выходит из игры НАВСЕГДА (сам или ведущая как страховка) ---
