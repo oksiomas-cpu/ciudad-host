@@ -272,7 +272,13 @@ export default function HostConsole() {
     } catch (e) { setRoomErr("Сеть недоступна: " + e); }
     setRoomBusy(false);
   }
-  function closeRoom() { setRoom(null); setRoomErr(""); try { localStorage.removeItem("host_room_v1"); } catch (e) {} }
+  async function closeRoom() {
+    // Сообщаем серверу — ставит needsLeagueCheck участникам (Don Verbo cron заберёт утром)
+    if (room && room.code) {
+      try { await api({ action: "close_game", code: room.code }); } catch (_) {}
+    }
+    setRoom(null); setRoomErr(""); try { localStorage.removeItem("host_room_v1"); } catch (e) {}
+  }
   async function kickPlayer(pid) {
     if (!room) return;
     const d = await api({ action: "kick", code: room.code, playerId: pid });
@@ -715,7 +721,12 @@ export default function HostConsole() {
               );
             })}
           </div>
-          <Btn bg={C.emerald} onClick={resetAll} style={{ width: "100%", marginTop: 14, padding: 13 }}>
+          <Btn bg={C.emerald} onClick={async () => {
+            if (room && room.code) {
+              try { await api({ action: "close_game", code: room.code }); } catch (_) {}
+            }
+            resetAll();
+          }} style={{ width: "100%", marginTop: 14, padding: 13 }}>
             Новая игра
           </Btn>
         </Block>
