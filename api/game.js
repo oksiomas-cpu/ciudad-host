@@ -90,6 +90,23 @@ function advanceTurn(g) {
   fixTurn(g);
 }
 
+// Круг = 9 вопросов (1-9 круг 1, 10-18 круг 2, 19-27 круг 3) — та же формула,
+// что doReveal использует для очков 5/3/1. Выбывание (неверный глагол) теперь
+// действует только до конца ТЕКУЩЕГО круга: на границе круга eliminated
+// обнуляется, и все детективы возвращаются в игру для следующих 9 вопросов.
+function circleOf(qn) {
+  return qn < 9 ? 1 : qn < 18 ? 2 : 3;
+}
+function checkCircleBoundary(g) {
+  const qn = (g.round.asked || []).length;
+  const c = circleOf(qn);
+  if ((g.round.circle || 1) !== c) {
+    g.round.circle = c;
+    g.round.eliminated = [];
+    g.round.lastElim = null;
+  }
+}
+
 function addPts(g, pid, pts) {
   if (!pid || !pts) return;
   g.scores = g.scores || {};
@@ -321,7 +338,8 @@ export default async function handler(req, res) {
       g.round.canonName = String(roles.canonName || "").slice(0, 24);
       g.round.fantasyName = String(roles.fantasyName || "").slice(0, 24);
       g.round.hands = []; // поднятые руки «готов назвать глагол»: [{by, byName, ts}]
-      g.round.eliminated = []; // выбывшие детективы (неверный глагол)
+      g.round.eliminated = []; // выбывшие детективы (неверный глагол) — только в текущем круге из 9 вопросов
+      g.round.circle = 1; // текущий круг вопросов (1-9 / 10-18 / 19-27)
       g.round.guess = null; // активная попытка: {by, byName, stage: "voting"|"naming", ts}
       g.round.votes = {}; // тайные голоса: {pid: "A"|"B"} — наружу не уходят до вскрытия
       g.round.votesDone = false; // голосование раунда уже состоялось (один раз за раунд)
@@ -384,7 +402,7 @@ export default async function handler(req, res) {
           return res.status(200).json({ ok: false, error: "Ты не детектив этого раунда" });
         }
         if ((g.round.eliminated || []).includes(pid)) {
-          return res.status(200).json({ ok: false, error: "Ты выбыл из раунда — дождись следующего" });
+          return res.status(200).json({ ok: false, error: "Ты выбыл из этого круга — дождись следующего" });
         }
         const activeId = dets[(g.round.turnIdx || 0) % dets.length];
         if (pid !== activeId) {
@@ -402,6 +420,7 @@ export default async function handler(req, res) {
         text: String(body.text || "").slice(0, 200),
         ts: Date.now(),
       });
+      checkCircleBoundary(g);
       advanceTurn(g);
       g.v++;
       await setGame(g);
@@ -430,7 +449,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: false, error: "Ты не детектив этого раунда" });
       }
       if ((g.round.eliminated || []).includes(pid)) {
-        return res.status(200).json({ ok: false, error: "Ты выбыл из раунда — дождись следующего" });
+        return res.status(200).json({ ok: false, error: "Ты выбыл из этого круга — дождись следующего" });
       }
       const activeId = dets[(g.round.turnIdx || 0) % dets.length];
       if (pid !== activeId) {
@@ -468,6 +487,7 @@ export default async function handler(req, res) {
         ts: Date.now(),
       });
       g.round.pendingOwn = null;
+      checkCircleBoundary(g);
       advanceTurn(g);
       g.v++;
       await setGame(g);
@@ -481,7 +501,7 @@ export default async function handler(req, res) {
       const pid = String(body.playerId || "");
       const dets = g.round.roles.detectives || [];
       if (!dets.includes(pid)) return res.status(200).json({ ok: false, error: "Ты не детектив этого раунда" });
-      if ((g.round.eliminated || []).includes(pid)) return res.status(200).json({ ok: false, error: "Ты выбыл из раунда" });
+      if ((g.round.eliminated || []).includes(pid)) return res.status(200).json({ ok: false, error: "Ты выбыл из этого круга" });
       g.round.hands = g.round.hands || [];
       if (body.down) {
         g.round.hands = g.round.hands.filter((h) => h.by !== pid);
@@ -503,7 +523,7 @@ export default async function handler(req, res) {
       const pid = String(body.playerId || "");
       const dets = g.round.roles.detectives || [];
       if (!dets.includes(pid)) return res.status(200).json({ ok: false, error: "Это не детектив раунда" });
-      if ((g.round.eliminated || []).includes(pid)) return res.status(200).json({ ok: false, error: "Этот детектив выбыл" });
+      if ((g.round.eliminated || []).includes(pid)) return res.status(200).json({ ok: false, error: "Этот детектив выбыл из круга" });
       const p = g.players.find((x) => x.id === pid);
       g.round.hands = (g.round.hands || []).filter((h) => h.by !== pid);
       g.round.guess = {
@@ -569,7 +589,7 @@ export default async function handler(req, res) {
         doReveal(g, gu.by, gu.byName);
         await syncRoundScores(g);
       } else {
-        // неверный глагол → выбывание до конца раунда, ложь НЕ раскрывается
+        // неверный глагол → выбывание до конца ТЕКУЩЕГО КРУГА (9 вопросов), ложь НЕ раскрывается
         g.round.eliminated = g.round.eliminated || [];
         if (gu.by && !g.round.eliminated.includes(gu.by)) g.round.eliminated.push(gu.by);
         g.round.hands = (g.round.hands || []).filter((h) => h.by !== gu.by);
@@ -624,7 +644,7 @@ export default async function handler(req, res) {
     }
 
     // --- Игрок выходит из игры НАВСЕГДА (сам или ведущая как страховка) ---
-    // Отличается от kick (полное удаление из лобби) и от eliminated (выбыл в одном раунде).
+    // Отличается от kick (полное удаление из лобби) и от eliminated (выбыл из текущего круга).
     // Ставит флаг left: игрок остаётся в g.players (очки сохранены и видны как «вышел»),
     // но пульт /host пересобирает СЛЕДУЮЩИЙ раунд без него. Текущий раунд доигрывается
     // прежним составом — мы НЕ трогаем round.roles/turn здесь.
