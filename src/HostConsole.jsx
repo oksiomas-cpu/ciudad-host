@@ -471,7 +471,7 @@ export default function HostConsole() {
   async function createRoom() {
     setRoomBusy(true); setRoomErr("");
     try {
-      const d = await api({ action: "create", packId: pack ? pack.id : "cap1" });
+      const d = await api({ action: "create" });
       if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
       else setRoomErr(d.error || "Не получилось создать комнату");
     } catch (e) { setRoomErr("Сеть недоступна: " + e); }
@@ -747,7 +747,7 @@ export default function HostConsole() {
   function nobody() {
     award(6, [canon, fantasy]);
     setSolved(true); setAskWho(false);
-    setBanner("Никто не угадал. Свидетели +6 (потолок). Глагол раскрывается.");
+    setBanner(`Никто не угадал. Свидетели +6 (потолок). ${TERMS.sing} раскрывается.`);
   }
   function manual(idx, pts) { award(pts, [idx]); }
 
@@ -1086,14 +1086,14 @@ export default function HostConsole() {
           <span style={{ background: C.goldDeep, color: "#fff", borderRadius: 8, padding: "3px 10px", fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>Комната {room.code}</span>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: rolesSent && rolesSent.n === round + 1 && rolesSent.ok ? C.emeraldDeep : C.inkSoft }}>
             {rolesSent && rolesSent.n === round + 1
-              ? (rolesSent.ok ? "📡 Роли и глагол отправлены на пульты игроков" : `⚠️ Роли не дошли: ${rolesSent.msg}`)
+              ? (rolesSent.ok ? `📡 Роли и ${TERMS.acc} отправили на пульты игроков` : `⚠️ Роли не дошли: ${rolesSent.msg}`)
               : "📡 Роли ещё не отправлены на пульты"}
           </span>
           <button onClick={() => pushRoles(round)} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 99, padding: "3px 10px", color: C.goldDeep, fontSize: 12.5, cursor: "pointer", fontFamily: SERIF, fontWeight: 600 }}>↻ Отправить ещё раз</button>
         </div>
       )}
       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-        <Btn bg={C.gold} onClick={makeTelegram}>📨 Отправить глагол свидетелям</Btn>
+        <Btn bg={C.gold} onClick={makeTelegram}>📨 Отправить {TERMS.acc} свидетелям</Btn>
       </div>
       {tg && (
         <div style={{ marginTop: 14, background: C.cream, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
@@ -1230,7 +1230,7 @@ export default function HostConsole() {
       {roundConnected && !solved && guessSrv && guessSrv.stage === "naming" && (
         <div style={{ background: C.goldSoft, border: `2px solid ${C.goldDeep}`, borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ fontWeight: 800, fontSize: wide ? 19 : 16, color: C.ink, marginBottom: 6 }}>
-            🎤 <span style={{ color: C.goldDeep }}>{guessSrv.byName}</span> называет глагол голосом. Верный — <b>{v.inf}</b>?
+            🎤 <span style={{ color: C.goldDeep }}>{guessSrv.byName}</span> называет {TERMS.acc} голосом. {pack && pack.id==="cap2"?"Верная":"Верный"} — <b>{v.inf}</b>?
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Btn big={wide} bg={C.emerald} onClick={() => sendVerdict(true)}>✅ Верный — вскрытие и очки</Btn>
@@ -1241,7 +1241,7 @@ export default function HostConsole() {
       {roundConnected && !solved && !guessSrv && (
         <div style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
           <div style={{ fontWeight: 800, fontSize: wide ? 16 : 14, color: C.goldDeep, marginBottom: 6 }}>
-            🖐 Готовы назвать глагол {handsSrv.length ? `(${handsSrv.length})` : "— рук пока нет"}
+            🖐 Готовы назвать {TERMS.acc} {handsSrv.length ? `(${handsSrv.length})` : "— рук пока нет"}
           </div>
           {handsSrv.map((h, i) => (
             <div key={h.by} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: `1px dashed ${C.line}` }}>
@@ -1250,7 +1250,7 @@ export default function HostConsole() {
             </div>
           ))}
           <div style={{ fontSize: wide ? 13.5 : 12, color: C.inkSoft, marginTop: 7, lineHeight: 1.45 }}>
-            Право первой попытки — у задавшего вопрос: он называет глагол голосом, ты жмёшь «Дать слово» на его имени ниже и потом ✅/❌. Молчит — слово первой руке.
+            Право первой попытки — у задавшего вопрос: он называет {TERMS.acc} голосом, ты жмёшь «Дать слово» на его имени ниже и потом ✅/❌. Молчит — слово первой руке.
           </div>
           {(() => {
             const dets = (rdSrv.roles && rdSrv.roles.detectives) || [];
@@ -1294,9 +1294,9 @@ export default function HostConsole() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Btn big={wide} bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27 || !!guessSrv}>{roundConnected ? "+ Вопрос голосом (без пульта)" : "+ Вопрос задан"}</Btn>
             <Btn big={wide} bg={C.gold} onClick={passTurn} disabled={!!guessSrv} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
-            {!roundConnected && <Btn big={wide} bg={C.emerald} onClick={() => setAskWho(true)}>✔ Глагол угадан</Btn>}
+            {!roundConnected && <Btn big={wide} bg={C.emerald} onClick={() => setAskWho(true)}>✔ {TERMS.sing} {pack && pack.id==="cap2"?"угадана":"угадан"}</Btn>}
             {!roundConnected && qCount >= 27 && <Btn big={wide} bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
-            {roundConnected && !guessSrv && <Btn big={wide} bg={qCount >= 27 ? C.raspberry : "#B0A48C"} onClick={endRoundSrv} title="Голосование (если ещё не было) → вскрытие глагола → очки свидетелям">🏁 Завершить раунд</Btn>}
+            {roundConnected && !guessSrv && <Btn big={wide} bg={qCount >= 27 ? C.raspberry : "#B0A48C"} onClick={endRoundSrv} title={`Голосование (если ещё не было) → вскрытие (${TERMS.acc}) → очки свидетелям`}>🏁 Завершить раунд</Btn>}
           </div>
           <div style={{ fontSize: wide ? 13.5 : 12, color: C.inkSoft, marginTop: 7, lineHeight: 1.45 }}>
             «+ Вопрос» — если вопрос прозвучал голосом мимо пультов. «↷ Передать ход» — детектив завис или пропускает. «🏁 Завершить раунд» — вопросы кончились / никто не угадывает.
