@@ -263,6 +263,7 @@ export default async function handler(req, res) {
       const g = {
         code,
         phase: "lobby", // lobby | game (этап 2) | final (этап 2)
+        packId: (function () { const p = String(body.packId || "").trim(); return (p === "cap1" || p === "cap2") ? p : "cap1"; })(), // глава комнаты: cap1 (Presente) | cap2 (Perfecto). Дефолт cap1 — обратная совместимость
         createdAt: new Date().toISOString(),
         players: [], // [{id, name}]
         v: 1, // счётчик версий состояния
