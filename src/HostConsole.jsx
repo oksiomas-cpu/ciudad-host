@@ -471,7 +471,7 @@ export default function HostConsole() {
   async function createRoom() {
     setRoomBusy(true); setRoomErr("");
     try {
-      const d = await api({ action: "create" });
+      const d = await api({ action: "create", packId: pack ? pack.id : "cap1" });
       if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
       else setRoomErr(d.error || "Не получилось создать комнату");
     } catch (e) { setRoomErr("Сеть недоступна: " + e); }
