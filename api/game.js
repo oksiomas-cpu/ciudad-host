@@ -221,6 +221,36 @@ async function syncRoundScores(g) {
   }
 }
 
+// Названия глав для слепка журнала игр (по packId).
+const CHAPTER_TITLES = { cap1: "Глава 1", cap2: "Глава 2" };
+
+// Слепок завершённой игры для ручной привязки в Don Verbo (команда /vincular).
+// Пишется в финале в ключ gamelog:{code} БЕЗ TTL (журнал должен пережить комнату,
+// которая истекает через 12 часов). Хранит имя + итоговые очки за игру (g.scores[pid].g)
+// каждого игрока. tgId-мост (score:{tgId}) НЕ трогаем — он остаётся для будущей
+// автопривязки по никам. Здесь — простой список «имя + сумма за игру».
+// Добавляем код в множество gamelog:pending, чтобы бот знал, что есть несвязанные игры.
+async function saveGameLog(g) {
+  const players = (g.players || []).map((p) => ({
+    name: p.name,
+    score: (g.scores && g.scores[p.id] && g.scores[p.id].g) || 0,
+  }));
+  if (!players.length) return;
+  const log = {
+    code: g.code,
+    date: new Date().toISOString().slice(0, 10),
+    packId: g.packId || "cap1",
+    chapter: CHAPTER_TITLES[g.packId] || "Глава 1",
+    players,
+    linked: false,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    await cmd(["SET", `gamelog:${g.code}`, JSON.stringify(log)]); // без EX — журнал не истекает
+    await cmd(["SADD", "gamelog:pending", g.code]);
+  } catch (_) {}
+}
+
 // Этап 3, шаг 4: закрытие комнаты ведущей.
 // Ставит флаг needsLeagueCheck:true каждому клубному участнику (есть user:{tgId}).
 // Don Verbo cron при следующем запуске заберёт флаг и пошлёт сообщение о лиге.
@@ -637,6 +667,7 @@ export default async function handler(req, res) {
     // Don Verbo cron при следующем запуске обработает флаг.
     if (action === "close_game") {
       await markLeagueCheck(g);
+      await saveGameLog(g);
       g.phase = "closed";
       g.closedAt = new Date().toISOString();
       g.v++;
