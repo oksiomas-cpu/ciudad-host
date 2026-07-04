@@ -776,6 +776,7 @@ export default function HostConsole() {
   function resetAll() {
     setPhase("setup"); setPlayers(["", "", "", "", ""]); setChosen([]);
     setOrder([]); setRoundOrder([]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
+    setPack(null); // возврат на экран выбора картриджа — иначе вопросы/глаголы остаются от предыдущей игры
   }
 
   // ---------- ОБЩИЙ КАРКАС ----------
