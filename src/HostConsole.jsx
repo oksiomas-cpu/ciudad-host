@@ -471,7 +471,7 @@ export default function HostConsole() {
   async function createRoom() {
     setRoomBusy(true); setRoomErr("");
     try {
-      const d = await api({ action: "create" });
+      const d = await api({ action: "create", packId: pack ? pack.id : "cap1" });
       if (d.ok) { setRoom(d.game); localStorage.setItem("host_room_v1", JSON.stringify(d.game)); }
       else setRoomErr(d.error || "Не получилось создать комнату");
     } catch (e) { setRoomErr("Сеть недоступна: " + e); }
@@ -777,6 +777,9 @@ export default function HostConsole() {
     setPhase("setup"); setPlayers(["", "", "", "", ""]); setChosen([]);
     setOrder([]); setRoundOrder([]); setRound(0); setQCount(0); setScores({}); setSolved(false); setBanner(""); setTg(null);
     setPack(null); // возврат на экран выбора картриджа — иначе вопросы/глаголы остаются от предыдущей игры
+    // Сбрасываем комнату: под новую выбранную игру нужна свежая комната с правильным packId,
+    // иначе игроки останутся в старой комнате предыдущей главы и будут получать её вопросы.
+    setRoom(null); setRoomErr(""); try { localStorage.removeItem("host_room_v1"); } catch (e) {}
   }
 
   // ---------- ОБЩИЙ КАРКАС ----------
@@ -796,8 +799,13 @@ export default function HostConsole() {
         <Header />
         <Block stripe={C.raspberry}>
           <h2 style={h2}>🎮 Комната Zoom-игры</h2>
-          {!room ? (
+          {(!room || (room.packId && pack && room.packId !== pack.id)) ? (
             <>
+              {room && room.packId && pack && room.packId !== pack.id && (
+                <p style={{ ...pHint, color: C.raspberry, marginBottom: 6 }}>
+                  Открытая комната была для другой игры ({room.chapter || room.packId}). Создай новую комнату под выбранную игру, чтобы у игроков были правильные вопросы.
+                </p>
+              )}
               <p style={pHint}>Создай комнату — получишь код для игроков. Они введут его в своих пультах, и ты увидишь, кто вошёл.</p>
               <Btn bg={C.raspberry} disabled={roomBusy} onClick={createRoom} style={{ width: "100%", marginTop: 10, padding: 13 }}>
                 {roomBusy ? "Создаю..." : "✦ Создать комнату"}
