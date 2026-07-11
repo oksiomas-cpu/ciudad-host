@@ -10,6 +10,8 @@
 // (verdict), принудительное завершение раунда (end_round).
 // Право первой попытки — у детектива, задавшего вопрос (голосом, без кнопки);
 // кнопка «рука» — заявка остальных, слово даёт ведущая.
+// Этап 3, шаг 2: join принимает tgId (Telegram, из Mini App) и сохраняет
+// p.tgId — мост к общей копилке score:{tgId}. tgId не отдаём в pub().
 // Этап 3, шаг 3: после вскрытия раунда (verdict→doReveal) — для игроков
 // с p.tgId слить очки раунда в score:{tgId}.{detective|canon|fantasia}
 // (HINCRBY) и один раз за игру (комнату) +1 в user:{tgId}.gamesPlayed.
@@ -17,13 +19,16 @@
 // Для каждого участника с tgId (не в TEST_IDS) ставит флаг
 // needsLeagueCheck:true в user:{tgId}. Don Verbo cron при следующем
 // запуске видит флаг, проверяет лигу и шлёт сообщение участнику.
+//
+// ЕДИНЫЙ ФАЙЛ: эта копия живёт в ДВУХ репо (ciudad-host и
+// symulador_jugadores) и должна быть ИДЕНТИЧНОЙ в обоих. Правишь — правь обе.
 // ============================================================
 
 const TTL = String(60 * 60 * 12); // игра живёт в базе 12 часов
 
 // Telegram ID тест-аккаунтов (репетитор / Оксана Майкова).
 // Исключаются из gamesPlayed, voronka и league check.
-const TEST_IDS = ['316593124'];
+const TEST_IDS = ['316593124', '835260826'];
 
 function env() {
   return {
@@ -44,9 +49,27 @@ async function cmd(arr) {
   return d.result;
 }
 
+// Ответы свидетелей (Sí/No) живут в ОТДЕЛЬНОМ Redis-хеше game:{code}:ans:
+// поле = "qid:A" / "qid:B", значение = "sí" / "no". HSET/HDEL атомарны по полю,
+// поэтому ответы A и B независимы и НЕ затираются ни опросом раз в 2 сек, ни
+// параллельными действиями других детективов. Раньше весь блок answers жил
+// внутри game-блоба и переписывался целиком (last-write-wins) — отсюда «бейдж
+// через раз». Хеш — единственный источник правды по ответам.
+async function getAns(code) {
+  const flat = await cmd(["HGETALL", `game:${code}:ans`]);
+  const out = {};
+  if (Array.isArray(flat)) { for (let i = 0; i < flat.length; i += 2) out[flat[i]] = flat[i + 1]; }
+  else if (flat && typeof flat === "object") { Object.assign(out, flat); }
+  return out;
+}
+
 async function getGame(code) {
   const v = await cmd(["GET", `game:${code}`]);
-  return v ? JSON.parse(v) : null;
+  if (!v) return null;
+  const g = JSON.parse(v);
+  // Ответы свидетелей подмешиваем из их хеша — всегда свежие и неклобберимые.
+  if (g && g.round) g.round.answers = await getAns(code);
+  return g;
 }
 function setGame(g) {
   return cmd(["SET", `game:${g.code}`, JSON.stringify(g), "EX", TTL]);
@@ -253,7 +276,7 @@ async function saveGameLog(g) {
 
 // Этап 3, шаг 4: закрытие комнаты ведущей.
 // Ставит флаг needsLeagueCheck:true каждому клубному участнику (есть user:{tgId}).
-// Don Verbo cron при следующем запуске заберёт флаг и пошлёт сообщение о лиге.
+// Don Verbo cron при следующем запуске заберёт флаг и пошлёт сообщение участнику.
 async function markLeagueCheck(g) {
   for (const p of g.players || []) {
     if (!p.tgId) continue;
@@ -317,16 +340,27 @@ export default async function handler(req, res) {
     if (action === "join") {
       const name = String(body.name || "").trim().slice(0, 24);
       if (!name) return res.status(200).json({ ok: false, error: "Введи имя" });
+      // Режим пульта: "voice" = играет сам, без блока вопросов (двигает ход своей кнопкой);
+      // "pad" (по умолчанию) = с вопросником (готовые вопросы + SÍ/NO). Полноценный игрок в обоих случаях.
+      const mode = body.mode === "voice" ? "voice" : "pad";
+      // tgId — Telegram ID игрока, если открыто из Mini App (мост к копилке score:{tgId}, Этап 3)
+      const tgId = body.tgId ? String(body.tgId).replace(/\D/g, "") : "";
       // То же имя = повторный вход (например, обновил страницу)
       let p = g.players.find((x) => x.name.toLowerCase() === name.toLowerCase());
       if (!p) {
         if (g.players.length >= 7) {
           return res.status(200).json({ ok: false, error: "Комната заполнена (7 игроков)" });
         }
-        p = { id: Math.random().toString(36).slice(2, 8), name };
+        p = { id: Math.random().toString(36).slice(2, 8), name, mode };
+        if (tgId) p.tgId = tgId;
         g.players.push(p);
         g.v++;
         await setGame(g);
+      } else {
+        let changed = false;
+        if (p.mode !== mode) { p.mode = mode; changed = true; }
+        if (tgId && p.tgId !== tgId) { p.tgId = tgId; changed = true; }
+        if (changed) { g.v++; await setGame(g); }
       }
       return res.status(200).json({ ok: true, playerId: p.id, game: pub(g) });
     }
@@ -394,8 +428,8 @@ export default async function handler(req, res) {
       g.round.witB = wits[1].id;
       g.round.witBName = wits[1].name;
       g.round.asked = []; // лента вопросов раунда: {by, byName, to, qid, text, ts}
-      g.round.answers = {}; // общие ответы свидетелей: ключ "qid:A"/"qid:B" -> "sí"|"no"
-      await cmd(["DEL", `game:${code}:ans`]).catch(() => {}); // новый раунд/предмет — стереть SÍ/NO прошлого допроса (иначе у игроков остаются хвосты)
+      g.round.answers = {}; // общие ответы свидетелей: ключ "qid:A"/"qid:B" -> "sí"|"no" (пишет детектив, видят все)
+      await cmd(["DEL", `game:${code}:ans`]).catch(() => {}); // новый раунд — стереть ответы прошлого (хеш — источник правды)
       g.v++;
       await setGame(g);
       return res.status(200).json({ ok: true, game: pub(g) });
@@ -457,6 +491,32 @@ export default async function handler(req, res) {
       advanceTurn(g);
       g.v++;
       await setGame(g);
+      return res.status(200).json({ ok: true, game: pub(g) });
+    }
+
+    // --- Детектив фиксирует ответ свидетеля (Sí/No) → общая история допроса, видят все ---
+    if (action === "answer") {
+      if (!g.round) return res.status(200).json({ ok: false, error: "Раунд ещё не начался" });
+      if (g.round.revealed) return res.status(200).json({ ok: false, error: "Раунд уже завершён" });
+      const dets = (g.round.roles && g.round.roles.detectives) || [];
+      const pid = String(body.playerId || "");
+      const manual = !!body.manual; // ведущая может зафиксировать ответ вручную
+      if (!manual && !dets.includes(pid)) {
+        return res.status(200).json({ ok: false, error: "Ответ свидетеля фиксирует детектив" });
+      }
+      const qid = body.qid ? String(body.qid) : null;
+      const w = body.target === "A" || body.target === "B" ? body.target : null;
+      const val = body.value === "sí" || body.value === "no" ? body.value : null;
+      if (!qid || !w) return res.status(200).json({ ok: false, error: "Нужен вопрос и свидетель A/B" });
+      g.round.answers = g.round.answers || {};
+      const key = qid + ":" + w;
+      // Пишем в отдельный атомарный хеш game:{code}:ans, а НЕ в game-блоб.
+      // Так ответ A/B нельзя затереть ни опросом, ни записью другого детектива.
+      // Тоггл (снять/поставить) считает клиент; сервер пишет/снимает детерминированно.
+      if (val) { await cmd(["HSET", `game:${code}:ans`, key, val]); g.round.answers[key] = val; }
+      else { await cmd(["HDEL", `game:${code}:ans`, key]); delete g.round.answers[key]; }
+      await cmd(["EXPIRE", `game:${code}:ans`, TTL]).catch(() => {}); // держим TTL заодно с блобом
+      // НЕ вызываем setGame — блоб не трогаем вовсе, чтобы не клоббернуть ленту asked.
       return res.status(200).json({ ok: true, game: pub(g) });
     }
 
@@ -590,6 +650,7 @@ export default async function handler(req, res) {
         if (g.round.guess.endRound) {
           // принудительное завершение: вскрытие без называния глагола
           doReveal(g, null, null);
+          await syncRoundScores(g);
         } else {
           g.round.guess.stage = "naming";
         }
@@ -664,19 +725,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, game: pub(g) });
     }
 
-    // --- Этап 3, шаг 4: ведущая закрывает комнату после просмотра результатов ---
-    // Ставит needsLeagueCheck:true каждому клубному участнику.
-    // Don Verbo cron при следующем запуске обработает флаг.
-    if (action === "close_game") {
-      await markLeagueCheck(g);
-      await saveGameLog(g);
-      g.phase = "closed";
-      g.closedAt = new Date().toISOString();
-      g.v++;
-      await setGame(g);
-      return res.status(200).json({ ok: true, closed: true });
-    }
-
     // --- Игрок выходит из игры НАВСЕГДА (сам или ведущая как страховка) ---
     // Отличается от kick (полное удаление из лобби) и от eliminated (выбыл из текущего круга).
     // Ставит флаг left: игрок остаётся в g.players (очки сохранены и видны как «вышел»),
@@ -700,6 +748,19 @@ export default async function handler(req, res) {
       g.v++;
       await setGame(g);
       return res.status(200).json({ ok: true, game: pub(g) });
+    }
+
+    // --- Этап 3, шаг 4: ведущая закрывает комнату после просмотра результатов ---
+    // Ставит needsLeagueCheck:true каждому клубному участнику.
+    // Don Verbo cron при следующем запуске обработает флаг.
+    if (action === "close_game") {
+      await markLeagueCheck(g);
+      await saveGameLog(g);
+      g.phase = "closed";
+      g.closedAt = new Date().toISOString();
+      g.v++;
+      await setGame(g);
+      return res.status(200).json({ ok: true, closed: true });
     }
 
     return res.status(200).json({ ok: false, error: "Неизвестное действие: " + action });
