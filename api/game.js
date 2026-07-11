@@ -394,6 +394,8 @@ export default async function handler(req, res) {
       g.round.witB = wits[1].id;
       g.round.witBName = wits[1].name;
       g.round.asked = []; // лента вопросов раунда: {by, byName, to, qid, text, ts}
+      g.round.answers = {}; // общие ответы свидетелей: ключ "qid:A"/"qid:B" -> "sí"|"no"
+      await cmd(["DEL", `game:${code}:ans`]).catch(() => {}); // новый раунд/предмет — стереть SÍ/NO прошлого допроса (иначе у игроков остаются хвосты)
       g.v++;
       await setGame(g);
       return res.status(200).json({ ok: true, game: pub(g) });
