@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import {
+  QUESTIONS3, CATS3, TARGETS3, verbByKey3, fullAnswer3, BANK_NOTES3,
+} from "./game3Data.js";
 
 /* ============================================================
    LA CATA A CIEGAS — Пульт ведущего  /host
@@ -308,7 +311,7 @@ const PACKS = {
     id: "cap1", num: 1, titulo: "El día en el Palacio de Caramelo",
     grammar: "Presente", emoji: "☀️",
     desc: "Один день Шефа во дворце. Глаголы в настоящем времени.",
-    pool: "Глаголы", sing: "Глагол", acc: "глагол", min: "2 глагола",
+    pool: "Глаголы", sing: "Глагол", acc: "глагол", min: "2 глагола", fem: false,
     VERBS, QUESTIONS, CATS,
     verbByKey: (k) => VERBS.find((v) => v.key === k),
   },
@@ -316,9 +319,21 @@ const PACKS = {
     id: "cap2", num: 2, titulo: "El Gran Misterio del Palacio de Caramelo",
     grammar: "Pretérito Perfecto", emoji: "🌙",
     desc: "Ночное расследование: улики и предметы дворца. Pretérito Perfecto.",
-    pool: "Улики", sing: "Улика", acc: "улику", min: "2 улики",
+    pool: "Улики", sing: "Улика", acc: "улику", min: "2 улики", fem: true,
     VERBS: VERBS2, QUESTIONS: QUESTIONS2, CATS: CATS2,
     verbByKey: (k) => VERBS2.find((v) => v.key === k),
+  },
+  cap3: {
+    id: "cap3", num: 3, titulo: "El Caso de las Tres Huellas",
+    grammar: "Imperfecto · Indefinido · Perfecto Compuesto", emoji: "🕰️",
+    desc: "Три следа одной улики: обычный мир, разрыв вчера, след сегодня. Три прошедших времени сразу.",
+    pool: "Улики", sing: "Улика", acc: "улику", min: "2 улики", fem: true,
+    // VERBS = только предметы-цели. La sombra в списке физически отсутствует
+    // и выпасть как цель не может (спецификация 92).
+    VERBS: TARGETS3, QUESTIONS: QUESTIONS3, CATS: CATS3,
+    verbByKey: verbByKey3,
+    fullAnswer: fullAnswer3,
+    bankNotes: BANK_NOTES3,
   },
 };
 
@@ -401,9 +416,10 @@ function chime() {
 export default function HostConsole() {
   const [phase, setPhase] = useState("setup"); // setup | game | final
   const [pack, setPack] = useState(null); // выбранная игра (картридж); null → экран выбора
-  const TERMS = pack && pack.id === "cap2"
-    ? { pool: "Улики", sing: "Улика", acc: "улику", min: "2 улики" }
+  const TERMS = pack
+    ? { pool: pack.pool, sing: pack.sing, acc: pack.acc, min: pack.min }
     : { pool: "Глаголы", sing: "Глагол", acc: "глагол", min: "2 глагола" };
+  const FEM = !!(pack && pack.fem); // род термина: «улика» — ж.р., «глагол» — м.р.
   const [players, setPlayers] = useState(["", "", "", "", ""]);
   const [chosen, setChosen] = useState([]); // keys of selected verbs (max 5)
   const [order, setOrder] = useState([]); // индексы игроков в порядке ротации (3..7), собирается при старте
@@ -1239,7 +1255,7 @@ export default function HostConsole() {
       {roundConnected && !solved && guessSrv && guessSrv.stage === "naming" && (
         <div style={{ background: C.goldSoft, border: `2px solid ${C.goldDeep}`, borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ fontWeight: 800, fontSize: wide ? 19 : 16, color: C.ink, marginBottom: 6 }}>
-            🎤 <span style={{ color: C.goldDeep }}>{guessSrv.byName}</span> называет {TERMS.acc} голосом. {pack && pack.id==="cap2"?"Верная":"Верный"} — <b>{v.inf}</b>?
+            🎤 <span style={{ color: C.goldDeep }}>{guessSrv.byName}</span> называет {TERMS.acc} голосом. {FEM ? "Верная" : "Верный"} — <b>{v.inf}</b>?
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Btn big={wide} bg={C.emerald} onClick={() => sendVerdict(true)}>✅ Верный — вскрытие и очки</Btn>
@@ -1303,7 +1319,7 @@ export default function HostConsole() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Btn big={wide} bg={C.goldDeep} onClick={addQuestion} disabled={qCount >= 27 || !!guessSrv}>{roundConnected ? "+ Вопрос голосом (без пульта)" : "+ Вопрос задан"}</Btn>
             <Btn big={wide} bg={C.gold} onClick={passTurn} disabled={!!guessSrv} title="Если детектив завис или пропускает — двигаем очередь без вопроса">↷ Передать ход</Btn>
-            {!roundConnected && <Btn big={wide} bg={C.emerald} onClick={() => setAskWho(true)}>✔ {TERMS.sing} {pack && pack.id==="cap2"?"угадана":"угадан"}</Btn>}
+            {!roundConnected && <Btn big={wide} bg={C.emerald} onClick={() => setAskWho(true)}>✔ {TERMS.sing} {FEM ? "угадана" : "угадан"}</Btn>}
             {!roundConnected && qCount >= 27 && <Btn big={wide} bg={C.raspberry} onClick={nobody}>Никто не угадал</Btn>}
             {roundConnected && !guessSrv && <Btn big={wide} bg={qCount >= 27 ? C.raspberry : "#B0A48C"} onClick={endRoundSrv} title={`Голосование (если ещё не было) → вскрытие (${TERMS.acc}) → очки свидетелям`}>🏁 Завершить раунд</Btn>}
           </div>
@@ -1431,6 +1447,7 @@ function GamePicker({ onPick }) {
       </p>
       {card(PACKS.cap1, C.gold)}
       {card(PACKS.cap2, C.raspberry)}
+      {card(PACKS.cap3, C.emerald)}
       <div style={{ fontSize: 12, color: C.goldDeep, textAlign: "center", marginTop: 8 }}>La Ciudad de los Sentidos 🍬</div>
     </div></div>
   );
