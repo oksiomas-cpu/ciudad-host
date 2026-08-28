@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   QUESTIONS3, CATS3, TARGETS3, verbByKey3, fullAnswer3, BANK_NOTES3,
 } from "./game3Data.js";
+import {
+  QUESTIONS4, CATS4, TARGETS4, verbByKey4, fullAnswer4, BANK_NOTES4,
+} from "./game4Data.js";
 
 /* ============================================================
    LA CATA A CIEGAS — Пульт ведущего  /host
@@ -334,6 +337,16 @@ const PACKS = {
     verbByKey: verbByKey3,
     fullAnswer: fullAnswer3,
     bankNotes: BANK_NOTES3,
+  },
+  cap4: {
+    id: "cap4", num: 4, titulo: "El Libro Mágico de Don Verbo",
+    grammar: "Querer · poder · tener que + infinitivo", emoji: "📕",
+    desc: "La acción es la misma; cambia su estatus. 15 pistas, siete acciones y 21 preguntas de operadores.",
+    pool: "Улики", sing: "Улика", acc: "улику", min: "2 улики", fem: true,
+    VERBS: TARGETS4, QUESTIONS: QUESTIONS4, CATS: CATS4,
+    verbByKey: verbByKey4,
+    fullAnswer: fullAnswer4,
+    bankNotes: BANK_NOTES4,
   },
 };
 
@@ -1409,7 +1422,7 @@ function Footer({ onReset }) {
       <button onClick={onReset} style={{ background: "none", border: "none", color: C.inkSoft, fontSize: 13, textDecoration: "underline", cursor: "pointer", fontFamily: SERIF }}>
         Сбросить игру
       </button>
-      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.15 · 2 главы</div>
+      <div style={{ fontSize: 12, color: C.goldDeep, marginTop: 8 }}>La Ciudad de los Sentidos 🍬 · v2.16 · 4 главы</div>
     </div>
   );
 }
@@ -1448,6 +1461,7 @@ function GamePicker({ onPick }) {
       {card(PACKS.cap1, C.gold)}
       {card(PACKS.cap2, C.raspberry)}
       {card(PACKS.cap3, C.emerald)}
+      {card(PACKS.cap4, C.goldDeep)}
       <div style={{ fontSize: 12, color: C.goldDeep, textAlign: "center", marginTop: 8 }}>La Ciudad de los Sentidos 🍬</div>
     </div></div>
   );
@@ -1631,4 +1645,3 @@ const inp = { width: "100%", boxSizing: "border-box", padding: "10px 12px", marg
 const tag = { fontSize: 11.5, letterSpacing: ".5px", color: C.goldDeep, fontWeight: 600, textTransform: "uppercase", marginBottom: 2 };
 const th = { textAlign: "left", padding: "6px 8px", borderBottom: `2px solid ${C.line}`, fontSize: 12, fontWeight: 700 };
 const td = { padding: "6px 8px", borderBottom: `1px solid ${C.line}`, fontSize: 12.5 };
-
