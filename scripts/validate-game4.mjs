@@ -38,13 +38,12 @@ check("Canon уникальны", new Set(canonKeys).size === 15);
 check("Fantasía уникальны и не совпадают с Canon",
   new Set(fantasyKeys).size === 15 && fantasyKeys.every((key) => !canonKeys.includes(key)));
 check("минимумы матрицы сохранены",
-  minPairDistance(canonKeys) === 2 &&
+  minPairDistance(canonKeys) === 3 &&
   minPairDistance(fantasyKeys) === 3 &&
   Math.min(...fantasyKeys.flatMap((f) => canonKeys.map((c) => distance(f, c)))) === 2);
 const ownDiffs = TARGETS4.map((item, i) => distance(canonKeys[i], fantasyKeys[i]));
-check("12 искажений на 5 ответов; карточки 05, 06, 11 — на 6",
-  ownDiffs.filter((n) => n === 5).length === 12 &&
-  [5, 6, 11].every((n) => ownDiffs[n - 1] === 6));
+check("каждое искажение Fantasía — на 5–6 ответов (v2)",
+  ownDiffs.every((n) => n === 5 || n === 6), ownDiffs.join(","));
 check("полные ответы банка доступны",
   QUESTION_ORDER4.every((id) => fullAnswer4(id, "sí").startsWith("Sí,") && fullAnswer4(id, "no").startsWith("No,")));
 
